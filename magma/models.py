@@ -81,6 +81,154 @@ class BnGATConv(nn.Module):
 	    return x
 
 
+class GNNBase(nn.Module):
+    """Base class for graph neural networks (GNNs)."""
+    def __init__():
+        pass
+
+    def activations_hook(self, grad):
+        self.gradients = grad
+
+    def get_activations_gradient(self):
+        return self.gradients
+
+
+    def forward(self, data, reg_hook = False):
+        x, edge_index = data.x, data.edge_index
+
+        for conv_layer in self.conv_encoder:
+            x = conv_layer(x, edge_index)
+            #x = F.leaky_relu(x)
+            x = torch.tanh(x)
+
+        if reg_hook:
+            h = x.register_hook(self.activations_hook)
+
+        if self.pooling == 'mean':
+            x = global_mean_pool(x, data.batch)
+        elif self.pooling == 'add':
+            x = global_add_pool(x, data.batch)
+        elif self.pooling == 'max':
+            x = global_max_pool(x, data.batch)
+        else:
+            raise ValueError('Pooling method not specified or implented.')
+
+
+        # no non-linear activations in linear layers
+        # (only linear transformations)
+        if self.multiple_linear:
+            for dense_layer in self.linear_layers:
+                x = dense_layer(x)
+                #x = torch.tanh(x)
+                x = F.dropout(x, p=0.3, training=self.training)
+
+        x = self.final_layer(x)
+
+        if self.model_type == 'regression':
+            return x
+
+        elif self.model_type == 'multiclass':
+            x = F.log_softmax(x, dim =1)
+            return x
+        elif self.model_type == 'binary':
+            return F.sigmoid(x)
+        elif self.model_type == 'multilabel':
+            return F.sigmoid(x)
+
+        else:
+            raise ValueError(
+                'model_type needs to be one of: ["regression", "multiclass", "binary", "multilabel"]'
+            )
+
+    def project(self, data, pool = True, reg_hook = False):
+        """
+        Projects data up to last hidden layer for visualization.
+
+        Params
+        -------
+        data (torch_geometric.data.data.Data)
+            A graph in torch_geometric format. Composed of node_features `x`,
+            edge_indices, and edge_features.
+
+        pool(bool, default =True)
+            Optional kwarg, if set to True gets graph embeddings
+            from node embeddings.
+        """
+
+        x, edge_index = data.x, data.edge_index
+
+        for conv_layer in self.conv_encoder:
+            x = conv_layer(x, edge_index)
+            #x = F.relu(x)
+            x = torch.tanh(x)
+
+        if reg_hook:
+            h = x.register_hook(self.activations_hook)
+
+        # Get graph embedding
+        if pool:
+            if self.pooling == 'mean':
+                x = global_mean_pool(x, data.batch)
+            elif self.pooling == 'add':
+                x = global_add_pool(x, data.batch)
+            elif self.pooling == 'max':
+                x = global_max_pool(x, data.batch)
+
+        # Return node embeddings
+        else:
+            return x
+
+        # Project to last layer
+		# Notice no non-linearities
+        if self.multiple_linear:
+            for dense_layer in self.linear_layers:
+                x = dense_layer(x)
+                #x = F.relu(x)
+            #x = self.linear_layers[-1](x)
+
+        return x
+
+    def project_to_latent_space(self, data_loader, n_feats, latent_dim):
+        """
+        Returns a generator to project dataset into latent space,
+        i.e. last hidden layer.
+
+        Params
+        ------
+        data_loader (torch.DataLoader)
+            DataLoader which handles the batches and parallelization.
+
+        n_feats (int)
+            Number of dimensions of original dataset.
+
+        latent_dim (int)
+            Number of dimensions of layer to project onto.
+
+        Returns (yields)
+        -------
+        encoded_sample (array-like generator)
+            Generator of a single encoded data point in a numpy array format.
+        """
+
+        # Set no_grad mode to avoid updating computational graph.
+        # with torch.no_grad()
+
+        cuda = torch.cuda.is_available()
+
+        for ix, batch_x in enumerate(tqdm.tqdm(data_loader)):
+
+            if cuda:
+                batch_x = batch_x.cuda()
+                batch_x_preds = self.project(batch_x).cpu().detach().numpy()
+
+            else:
+                batch_x_preds = self.project(batch_x).detach().numpy()
+
+            for x in batch_x_preds:
+                encoded_sample = x.reshape(latent_dim)
+                yield encoded_sample
+
+
 class GraphConvNetwork(torch.nn.Module):
     "A graph neural network model based with Graph Convolutional Blocks."
     def __init__(
@@ -455,7 +603,8 @@ class GraphAttentionNetwork(nn.Module):
         else:
             return x
 
-        #Project to last layer
+        # Project to last layer
+		# Notice no non-linearities
         if self.multiple_linear:
             for dense_layer in self.linear_layers:
                 x = dense_layer(x)
