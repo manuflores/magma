@@ -57,8 +57,8 @@ def train_supervised_gcn(
         loss = loss_fn(y_pred, y_true)
     else:
         loss = loss_fn(
-            output,
-            y_true.reshape(-1, n_out)
+            y_pred.float(),
+            y_true.reshape(-1, n_out).float()
         )
 
     loss.backward()
@@ -79,7 +79,7 @@ def val_supervised_gcn(
         loss = loss_fn(y_pred, y_true)
     else:
         loss = loss = loss_fn(
-            output,
+            y_pred.float(),
             y_true.reshape(-1, n_out).float()
         )
 
@@ -256,15 +256,35 @@ def supervised_trainer(
 
     Params
     ------
+    n_epochs (int)
+        Number of forward-backward passes through all the training data.
+
+    train_loader, val_loader
+        Torch dataloaders of training and validation set. The validation set
+        is used for estimating model convergence.
+
+    model (nn.Module)
+        Supervised neural net model.
+
+    criterion (torch.nn.modules.loss object)
+        Loss function.
+
+    optimizer (torch.optim object)
+        Optimizer, e.g. Adam or RMSProp.
+
+    multiclass (bool, default = False)
+        Whether the model is a softmax classification model.
+
     n_classes (int, default = 1)
         Dimensionality of output dimension. Leave as 1 for multiclass,
         i.e. the output is a probability distribution over classes (e.g. MNIST).
 
     model_dir (str, default = None)
-        Path to store trained models.
+        Path to store trained models. If set to None it will not store the model weights.
 
     model_name (str, default = None)
-        Filename of the model to be stored.
+        Filename of the model to be stored. If set to None and `model_dir` is specified,
+        the model will be stored as `model.pt`
 
     early_stopping_tol (float, default = 0.1)
         Tolerance to stop the training.
@@ -378,7 +398,7 @@ def supervised_trainer(
             if model_name is not None:
                 torch.save(model.state_dict(), model_dir + model_name + '_' + str(epoch) + '.pt')
             else:
-                torch.save(model.state_dict(), model_dir + 'model.pt')
+                torch.save(model.state_dict(), model_dir + 'model' + '_' + str(epoch) + '.pt')
 
 
     print('Finished training')
@@ -731,16 +751,17 @@ def initialize_network_weights(
         for module in net.modules():
 
             if isinstance(module, (nn.Linear, nn.Conv2d)):
+                nn.init.xavier_uniform_(module.weight)
                 try:
-                    nn.init.xavier_uniform_(module.weight)
-                except:
                     nn.init.uniform_(module.bias)
+                except:
+                    pass
 
             elif isinstance(module, (nn.GRU, nn.LSTM)):
                 for name, param in module.named_parameters():
                     if 'bias' in name :
                         nn.init.uniform_(param)
-                    elif  'weight' in name:
+                    elif 'weight' in name:
                         nn.init.xavier_uniform_(param)
                     else:
                         pass
@@ -1182,6 +1203,28 @@ def cv_filter(
 	else:
 		return adata
 
+@tz.curry
+def sample_to_name(sample_id, eliminate_parens = False, eliminate_hcl = True):
+    """
+    Returns processed version of sample id.
+
+    The best way to match is to try to match annotations in lowercase.
+    """
+    # Eliminate "_CD3" overhang
+    s = sample_id.split('_CD3')[0]
+    # Trim spaces
+    s = s.strip()
+    if eliminate_parens:
+        s = s.split('(')[0]
+        # Trim spaces
+        s = s.strip()
+
+    # Remove HCl overhang
+    if eliminate_hcl:
+        s = s.split(' HCl')[0]
+        s = s.strip()
+
+    return s
 
 def set_plotting_style_plt():
 

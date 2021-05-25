@@ -18,6 +18,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils.data import Dataset, IterableDataset, DataLoader
 
+import torch_geometric
 from torch_geometric.nn import GCNConv, GATConv
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool
 
@@ -93,7 +94,8 @@ class GNNBase(nn.Module):
         return self.gradients
 
 
-    def forward(self, data, reg_hook = False):
+    def forward(self, data:torch_geometric.data.Data):
+
         x, edge_index = data.x, data.edge_index
 
         for conv_layer in self.conv_encoder:
@@ -101,8 +103,8 @@ class GNNBase(nn.Module):
             #x = F.leaky_relu(x)
             x = torch.tanh(x)
 
-        if reg_hook:
-            h = x.register_hook(self.activations_hook)
+        # if reg_hook:
+        #     h = x.register_hook(self.activations_hook)
 
         if self.pooling == 'mean':
             x = global_mean_pool(x, data.batch)
@@ -140,7 +142,7 @@ class GNNBase(nn.Module):
                 'model_type needs to be one of: ["regression", "multiclass", "binary", "multilabel"]'
             )
 
-    def project(self, data, pool = True, reg_hook = False):
+    def project(self, data, pool = True, reg_hook_input = False, reg_hook_conv = False):
         """
         Projects data up to last hidden layer for visualization.
 
@@ -153,16 +155,30 @@ class GNNBase(nn.Module):
         pool(bool, default =True)
             Optional kwarg, if set to True gets graph embeddings
             from node embeddings.
+
+		reg_hook_input (bool, default= False)
+			Whether to record the gradients since for the input graph.
+			This is helpful to compute gradinput graph attribution method.
+
+		reg_hook_conv (bool, default = False)
+			Whether to record the grads after the last conv layer.
+			This method is helpful for gradCAM.
+
         """
 
         x, edge_index = data.x, data.edge_index
 
+		# For gradinput
+        if reg_hook_input:
+            h = x.register_hook(self.activations_hook)
+
+		# Forward pass through conv layers
         for conv_layer in self.conv_encoder:
             x = conv_layer(x, edge_index)
             #x = F.relu(x)
             x = torch.tanh(x)
 
-        if reg_hook:
+        if reg_hook_conv:
             h = x.register_hook(self.activations_hook)
 
         # Get graph embedding
