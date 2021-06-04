@@ -1,0 +1,211 @@
+# viz
+import seaborn as sns
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
+rcParams['axes.titlepad'] = 20
+
+# from holoviews.operation.datashader import datashade, rasterize
+# from holoviews.operation import gridmatrix
+# import hvplot.pandas
+# import bokeh.io
+# import holoviews as hv
+# import colorcet as cc
+
+def set_plotting_style_plt():
+
+    tw = 1.5
+    rc = {'lines.linewidth': 2,
+        'axes.labelsize': 18,
+        'axes.titlesize': 21,
+        'xtick.major' : 12,
+        'ytick.major' : 12,
+        'xtick.major.width': tw,
+        'xtick.minor.width': tw,
+        'ytick.major.width': tw,
+        'ytick.minor.width': tw,
+        'xtick.labelsize': 'large',
+        'ytick.labelsize': 'large',
+        'font.family': 'sans',
+        'weight':'bold',
+        'grid.linestyle': ':',
+        'grid.linewidth': 1.5,
+        'grid.color': '#ffffff',
+        'mathtext.fontset': 'stixsans',
+        'mathtext.sf': 'fantasy',
+        'legend.frameon': True,
+        'legend.fontsize': 12,
+       "xtick.direction": "in","ytick.direction": "in"}
+
+
+
+    plt.rc('text.latex', preamble=r'\usepackage{sfmath}')
+    plt.rc('mathtext', fontset='stixsans', sf='sans')
+    sns.set_style('ticks', rc=rc)
+
+    #sns.set_palette("colorblind", color_codes=True)
+    sns.set_context('notebook', rc=rc)
+
+
+def get_binary_palettes():
+    """
+    Binary palettes in HEX format.
+    Positions: colors = {
+     0: blue,
+     1: purple,
+     2: orange,
+     3: blue-green,
+     4: grey,
+     5: green
+    }
+    """
+    pals = (
+        ['#a8ddb5', '#2c7fb8'], # Blues
+        ['#bdbdbd', '#fcc5c0'], # Pinks
+        ['#969696','#807dba'], # Purple
+        ['#fec44f','#d95f0e'], # Oranges
+        ['#bdc9e1', '#1c9099'], # Blue-green
+        ['#cccccc', '#636363'], # Greys
+        ['#78c679', '#238443'] # Greens
+    )
+
+    return pals
+
+
+
+# def plot_sample_datashade(df, sample_name, vars_, sample_col = 'sample_id', **kwargs):
+#     """
+#     Returns an hvplot object with the sample colored by an indicator
+#     variable colored using datashading. This function is devised for
+#     visualizing datasets with millions of datapoints.
+
+#     Params
+#     ------
+#     df (pd.DataFrame)
+#         Annotated pandas dataframe.
+
+#     sample_name (str)
+#         Name of the sample to be colored.
+
+#     vars (list)
+#         Name of the xy variables for the scatter plot.
+
+#     sample_col(str, default = 'sample_id')
+#         Name of the column for which the sample_name will be selected from.
+
+#     kwargs
+#         All kwargs go directly to format the hvplot object.
+
+
+#     Returns
+#     -------
+
+#     shader_plot ()
+#         Scatter plot colored by sample name using datashader.
+
+#     """
+
+#     df_ = df.copy()
+#     # Assert sample in sample_col
+#     assert sample_name in df[sample_col].values
+
+#     # Assert there are more than two vars to plot with
+
+#     assert len(vars_) >= 2
+
+#     # Make binary indicator var
+#     indicator_variable = [1 if smpl== sample_name else 0 for smpl in df[sample_col]]
+
+#     # Add variable to dataframe
+#     df_[sample_name] = indicator_variable
+
+#     # Initialize plot for two variables
+#     if len(vars_) == 2:
+#         var_1, var_2  = vars_
+
+#         shader_plot = df_.hvplot.scatter(
+#             x = var_1,
+#             y = var_2,
+#             c = sample_name,
+#             #width = 600,
+#             datashade = True,
+#             **kwargs
+#         )
+
+#     # Initialize plot for multiple variables
+#     else :
+#         shader_plot = df_.hvplot.scatter(
+#             x = vars_[0],
+#             y = vars_[1:],
+#             c = sample_name,
+#             datashade = True,
+#             **kwargs
+#         )
+
+#     return shader_plot
+
+
+# def make_gridplot_hv(
+#     df,
+#     col_list,
+#     color_by=None,
+#     n_samples=None,
+#     rasterize_ = True)->hv.core.spaces.GridMatrix:
+
+#     """
+#     Returns a scatterplot gridmatrix for all pairwise combinations in col_list.
+#     Example: http://holoviews.org/gallery/demos/bokeh/iris_density_grid.html
+
+#     Note: with len(col_list)>5 the plot starts to take a lot of RAM, we recommend
+#     to use rasterize_= True.
+
+#     Params
+#     ------
+
+#     df (pd.DataFrame)
+#         DataFrame to extract data from. It should contain both the `col_list`
+#         and `color_by` as columns.
+
+#     col_list (list)
+#         List of columns to plot, each column should have numerical values.
+
+#     color_by (str, default = None)
+#         Name of column to color the plot, it should be an object or categorical dtype.
+#         Analog to the `hue` parameter in Seaborn.
+
+#     n_samples (int, default = None)
+#         Max number of samples to use for random sampling. This parameter helps
+#         when the dataset is very large (i.e. > 100K datapoints).
+
+#     rasterize_(bool)
+#         Whether to rasterize the plot to be able to plot millions of points.
+
+#         See the datashader documentation for more info :
+#         https://datashader.org/getting_started/Introduction.html
+
+#     Returns
+#     -------
+#     (holoviews.core.spaces.GridMatrix)
+
+#     """
+
+#     if n_samples is not None:
+#         df_ = df.sample(n_samples, replace = False)[col_list + [color_by]]
+#     else:
+#         df_ = df[col_list + [color_by]]
+
+#     if color_by is not None:
+#         ds = hv.Dataset(df_).groupby(color_by).overlay().opts(width = 150, height = 150)
+#     else:
+#         ds = hv.Dataset(df_)
+
+
+#     if rasterize_:
+#         return rasterize(gridmatrix(ds))
+#     else :
+#         from holoviews.operation.stats import univariate_kde
+
+#         return gridmatrix(
+#             ds,
+#             #chart_type = hv.Bivariate,
+#             diagonal_type = hv.Distribution
+#             )

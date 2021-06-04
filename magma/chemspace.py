@@ -9,6 +9,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from rdkit.Chem.Draw import rdMolDraw2D
+from rdkit.Chem import rdFMCS
 from torch_geometric.data import Batch
 from rdkit import Chem
 
@@ -120,6 +121,7 @@ def get_bond_pair(mol):#->tuple(list, np.array):
 
 	return indices, adj
 
+
 def mol2graph_data(mol)->tuple:
     """
     Returns node features, edge_indices, edge (bond features),
@@ -159,9 +161,88 @@ def n_atom_features():
 
 	return len(atom_features(atom))
 
+
 def n_bond_features():
 	bond = Checm.MolFromSmiles('CC'.GetBondWithIdx(0))
 	return len(bond_features(bond))
+
+
+
+def get_fp(mol, bits = 512)->np.array:
+    "Returns Morgan Fingerprint given an RDKit molecule."
+
+    fp = AllChem.GetMorganFingerprintAsBitVect(mol, 3, nBits=bits)
+    arr = np.zeros((0,), dtype=np.int8)
+    DataStructs.ConvertToNumpyArray(fp,arr)
+
+    return arr
+
+def get_mcs(ref_mol, query_mol):
+    """
+    Returns the indices of the maximum common substructure (MCS)
+    given a reference molecule and a query molecule.
+
+    Params
+    ------
+    ref_mol(rdkit mol)
+        Reference molecule.
+
+    query_mol (rdkit mol)
+        Query molecule.
+
+    Returns
+    -------
+    ix_matches(tuple)
+        Tuple of tuples with indices corresponding to the nodes
+        where a match was found.
+    """
+
+    res = rdFMCS.FindMCS([ref_mol, query_mol])
+
+    # Max common substructure
+    mcs = Chem.MolFromSmarts(res.smartsString)
+
+    ix_matches = query_mol.GetSubstructMatches(mcs)
+
+    return ix_matches
+
+def get_mcs_multi(ref_mol, query_mols):
+    """
+    Returns the Max Common Substructure (MCS) given
+    a reference molecule and a list of query molecules.
+
+    Params
+    ------
+    ref_mol(rdkit mol)
+        Reference molecule.
+
+    query_mols (list)
+        List of rdkit molecules for query.
+
+    Returns
+    -------
+    list_matches (list)
+        List of indices where a match was found for each
+        query molecule.
+    """
+
+    res = rdFMCS.FindMCS([ref_mol] + query_mols)
+    mcs = Chem.MolFromSmarts(res)
+
+    list_matches = []
+
+    for mol in query_mols:
+        try:
+            ix_match = mol.GetSubstructMatches(mcs)
+
+            list_matches.append(ix_match[0])
+
+        # Exception when no match was found.
+        except:
+            list_matches.append(None)
+
+    return list_matches
+
 
 
 def get_cam_weight(graph, model):
@@ -394,4 +475,3 @@ def plot_node_activations(
         )
 
     return None
-

@@ -629,7 +629,7 @@ class GraphAttentionNetwork(nn.Module):
 
         return x
 
-    def project_to_latent_space(self, data_loader, n_feats, latent_dim):
+    def project_to_latent_space(self, data_loader, latent_dim):
         """
         Returns a generator to project dataset into latent space,
         i.e. last hidden layer.

@@ -9,10 +9,6 @@
 #     - [>]  cells: get_count_stats, log_norm, cv_filter
 #     - [>]  viz: set_plotting_style
 
-import seaborn as sns
-import matplotlib.pyplot as plt
-from matplotlib import rcParams
-rcParams['axes.titlepad'] = 20
 
 import scipy.io as sio
 import scipy.stats as st
@@ -34,6 +30,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, IterableDataset, DataLoader
 import torch_geometric
+
 
 def train_supervised_gcn(
     model:nn.Module,
@@ -1226,36 +1223,37 @@ def sample_to_name(sample_id, eliminate_parens = False, eliminate_hcl = True):
 
     return s
 
-def set_plotting_style_plt():
+def get_ix_nondup(labels):
+    """
+    Returns a binary array given a set of categorical labels.
+    Used for filtering out duplicated labels in a minibatch when using
+    the n-way cross entropy ranking loss (online ranking) for joint embedding
+    training.
 
-    tw = 1.5
-    rc = {'lines.linewidth': 2,
-        'axes.labelsize': 18,
-        'axes.titlesize': 21,
-        'xtick.major' : 12,
-        'ytick.major' : 12,
-        'xtick.major.width': tw,
-        'xtick.minor.width': tw,
-        'ytick.major.width': tw,
-        'ytick.minor.width': tw,
-        'xtick.labelsize': 'large',
-        'ytick.labelsize': 'large',
-        'font.family': 'sans',
-        'weight':'bold',
-        'grid.linestyle': ':',
-        'grid.linewidth': 1.5,
-        'grid.color': '#ffffff',
-        'mathtext.fontset': 'stixsans',
-        'mathtext.sf': 'fantasy',
-        'legend.frameon': True,
-        'legend.fontsize': 12,
-       "xtick.direction": "in","ytick.direction": "in"}
+    Example
+    -------
+    x = np.random.randint(0, 10, 10)
+    x
+    >>> array([4, 8, 8, 7, 9, 8, 8, 3, 8, 9])
 
+    maskr = get_ix_nondup(x)
+    maskr
+    >>> array([ True,  True, False,  True,  True, False, False,  True, False,
+       False])
 
+    x[maskr]
+    >>> array([4, 8, 7, 9, 3])
 
-    plt.rc('text.latex', preamble=r'\usepackage{sfmath}')
-    plt.rc('mathtext', fontset='stixsans', sf='sans')
-    sns.set_style('ticks', rc=rc)
+    """
+    if isinstance(labels, torch.Tensor):
+        if labels.requires_grad:
+            labels = labels.detach()
+        labels = labels.numpy()
 
-    #sns.set_palette("colorblind", color_codes=True)
-    sns.set_context('notebook', rc=rc)
+    # Gen binary array of non-duplicated labels
+    mask = ~pd.Series(x).duplicated().values
+
+    # Check that no duplicated values remain
+    assert len(np.nonzero(pd.Series(labels[mask]).duplicated().values)[0]) == 0
+
+    return mask
