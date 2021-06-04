@@ -1245,12 +1245,18 @@ def get_ix_nondup(labels):
     >>> array([4, 8, 7, 9, 3])
 
     """
+
+
     if isinstance(labels, torch.Tensor):
+        is_tensor = True
+
         if labels.device.type == 'cuda':
             labels = labels.cpu()
         if labels.requires_grad:
             labels = labels.detach()
         labels = labels.numpy()
+    else:
+        is_tensor =False
 
     # Gen binary array of non-duplicated labels
     mask = ~pd.Series(labels).duplicated().values
@@ -1258,6 +1264,8 @@ def get_ix_nondup(labels):
     # Check that no duplicated values remain
     assert len(np.nonzero(pd.Series(labels[mask]).duplicated().values)[0]) == 0
 
+    if is_tensor:
+        mask = torch.from_numpy(mask).to(labels.device.type)
     return mask
 
 
