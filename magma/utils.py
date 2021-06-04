@@ -1249,12 +1249,14 @@ def get_ix_nondup(labels):
 
     if isinstance(labels, torch.Tensor):
         is_tensor = True
+        dev = labels.device
 
         if labels.device.type == 'cuda':
             labels = labels.cpu()
         if labels.requires_grad:
             labels = labels.detach()
         labels = labels.numpy()
+
     else:
         is_tensor =False
 
@@ -1265,7 +1267,7 @@ def get_ix_nondup(labels):
     assert len(np.nonzero(pd.Series(labels[mask]).duplicated().values)[0]) == 0
 
     if is_tensor:
-        mask = torch.from_numpy(mask).to(labels.device.type)
+        mask = (torch.from_numpy(mask)).to(dev)
     return mask
 
 
