@@ -1246,6 +1246,8 @@ def get_ix_nondup(labels):
 
     """
     if isinstance(labels, torch.Tensor):
+        if labels.device.type == 'cuda':
+            labels = labels.cpu()
         if labels.requires_grad:
             labels = labels.detach()
         labels = labels.numpy()
