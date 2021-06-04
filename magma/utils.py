@@ -1251,9 +1251,41 @@ def get_ix_nondup(labels):
         labels = labels.numpy()
 
     # Gen binary array of non-duplicated labels
-    mask = ~pd.Series(x).duplicated().values
+    mask = ~pd.Series(labels).duplicated().values
 
     # Check that no duplicated values remain
     assert len(np.nonzero(pd.Series(labels[mask]).duplicated().values)[0]) == 0
 
     return mask
+
+
+
+def get_acc_df_cell2mol(df_cells, name_to_target, name_to_class, k=1):
+    """
+    Returns a top-k accuracy dataframe per sample.
+
+    Params
+    ------
+    df_cells (pd.DataFrame)
+        Cell dataframe (from adata or df_embedding) that contains the top-k accuracy.
+
+    """
+    pred_df = (
+        df_cells.groupby(["drug_name", "top" + str(k) + "_accuracy"]).size().unstack().fillna(0)
+    )
+
+    pred_arr = pred_df.values / pred_df.values.sum(axis=1).reshape(-1, 1) * 100
+
+    perc_pred_df = pd.DataFrame(pred_arr, index=pred_df.index, columns=pred_df.columns)
+
+    accuracy_df = (
+        perc_pred_df.sort_values(by=0, ascending=True)[1].to_frame().reset_index()
+    )
+
+    accuracy_df.rename(columns = {1:'top@'+ str(k) + '_accuracy'}, inplace = True)
+
+    accuracy_df['target'] = accuracy_df['drug_name'].map(name_to_target)
+    accuracy_df['drug_class'] = accuracy_df['drug_name'].map(name_to_class)
+    accuracy_df['sample_class'] = accuracy_df['drug_name'] + '_' + accuracy_df['drug_class'].str.lower()
+
+    return accuracy_df
