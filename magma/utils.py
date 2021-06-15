@@ -2,13 +2,9 @@
 #     - [>]  trainers
 #     - [>]  initialize
 #     - [>]  torch_adata
-#     - [>]  accuracy
-#     - [>]  topk_acc
-#     - [>]  confusion_matrix
 #     - [>]  try_gpu
 #     - [>]  cells: get_count_stats, log_norm, cv_filter
-#     - [>]  viz: set_plotting_style
-
+from .metrics import accuracy, topk_acc
 
 import scipy.io as sio
 import scipy.stats as st
@@ -665,50 +661,6 @@ def try_gpu(i=0):
         return torch.device(f'cuda:{i}')
     return torch.device('cpu')
 
-def accuracy(y_pred, y_true):
-    "Returns the accuracy between predicted and true labels."
-    acc = torch.eq(y_true, y_pred).sum().item() / y_true.shape[0]
-    return acc
-
-def topk_acc(y_pred, y_true, k = 5):
-    """
-    Returns topk accuracy from multiclass classification.
-    Expect that `y_pred` as logits of size (y_true.shape[0], classes).
-    """
-    # Get indices of top k predictions along axis 1
-    top_k_ixs = y_pred.topk(k = k, dim = 1).indices
-    acc = torch.eq(y_true.view(-1,1), top_k_ixs).sum().item() / y_true.shape[0]
-    return acc
-
-def confusion_matrix(pred_labels, true_labels):
-    """
-    Returns a confusion matrix from a multiclass classification
-    set of labels. Expects labels to be integers between (0, n_classes).
-
-    Params
-    ------
-    pred_labels (array-like):
-        List of labels as predicted by a classification algorithm.
-
-    true_labels (array-like):
-        List of ground truth labels.
-
-    Returns
-    -------
-    conf_mat (array-like):
-        Confusion matrix.
-    """
-
-    n_labels = int(max(np.max(pred_labels), np.max(true_labels)) + 1)
-
-
-    conf_mat = np.zeros(shape = (n_labels, n_labels))
-
-    for (i, j) in zip(pred_labels, true_labels):
-        conf_mat[i,j] +=1
-
-    return conf_mat
-
 
 def initialize_network_weights(
     net:nn.Module, method = 'kaiming', seed = 4
@@ -1207,6 +1159,10 @@ def sample_to_name(sample_id, eliminate_parens = False, eliminate_hcl = True):
 
     The best way to match is to try to match annotations in lowercase.
     """
+
+    if 'ethylisothiourea sulfate' in sample_id:
+        return 'Methylisothiourea sulfate'
+
     # Eliminate "_CD3" overhang
     s = sample_id.split('_CD3')[0]
     # Trim spaces
@@ -1269,7 +1225,6 @@ def get_ix_nondup(labels):
     if is_tensor:
         mask = (torch.from_numpy(mask)).to(dev)
     return mask
-
 
 
 def get_acc_df_cell2mol(df_cells, name_to_target, name_to_class, k=1):

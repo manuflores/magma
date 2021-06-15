@@ -2,6 +2,8 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
+import numpy as np
+
 rcParams['axes.titlepad'] = 20
 
 # from holoviews.operation.datashader import datashade, rasterize
@@ -70,7 +72,175 @@ def get_binary_palettes():
 
     return pals
 
+def radar_chart(categories, values, color = 'lightgreen'):
+    """
+    Wrapper function to make radar chart from a counts dictionary.
 
+    Params
+    ------
+    categories (array-like)
+        Names of the different categories (labels).
+
+    values (array-like)
+        Counts of the given categories.
+
+    Example
+    -------
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    iris = sns.load_dataset('iris')
+
+    val_counts=iris.species.value_counts().to_dict()
+
+    # Makes radar chart
+    radar_chart(val_counts.keys(), val_counts.values())
+
+    """
+    if not isinstance(categories, list):
+        categories = list(categories)
+
+    N = len(categories)
+
+    if N > 30:
+        print("The categories are too big to visualize.")
+
+    else:
+        values = list(values)
+        # Repeat first value in last pos to close figure
+        values.append(values[0])
+        values_sum = np.sum(values[:-1])
+
+        percentages = [(val / values_sum) * 100 for val in values]
+
+        angles = [2 * np.pi * (n / float(N)) for n in range(N)]
+        # Repeat first angle too
+        angles.append(angles[0])
+
+        sns.set_style("whitegrid")
+
+        # Initialize figure, with polar plot
+        plt.figure(1, figsize=(7, 7))
+        ax = plt.subplot(111, polar=True)
+
+        # Draw one ax per variable + add labels labels
+        plt.xticks(angles[:-1], categories, color="grey", size=12)
+
+        # Set first variable in the vertical axis
+        ax.set_theta_offset(np.pi / 2)
+
+        # Set clockwise rotation
+        ax.set_theta_direction(-1)
+
+        # Set yticks to gray color
+        ytick_1, ytick_2, ytick_3 = (
+            np.round(max(percentages) / 3),
+            np.round((max(percentages) / 3) * 2),
+            np.round(max(percentages) / 3) * 3,
+        )
+
+        plt.yticks(
+            [ytick_1, ytick_2, ytick_3],
+            [ytick_1, ytick_2, ytick_3],
+            color="grey",
+            size=10,
+        )
+
+        y_tickmax = np.round(max(percentages) / 3) * 4
+
+        plt.ylim(0, y_tickmax)
+
+        # Plot data
+        ax.plot(angles, percentages, linewidth=1, color=color)
+
+        # Fill area
+        ax.fill(angles, percentages, "lightgreen", alpha=0.3)
+
+
+def lollipop_plot(
+    cats, values, title=None, xlabel=None, ylabel=None, sort = False, color="lightblue",
+    log = False
+):
+    """
+    Makes a lollipop plot from categorical values. Expects cats and values to be lists
+    or numpy arrays.
+
+    Params
+    ------
+    cats (array-like)
+
+    values (array-like)
+
+    title (str, default =None)
+
+    xlabel(str, default =None)
+
+    ylabel(str, default =None)
+
+    sort(str, default = False)
+
+    color(str, default ="lightblue")
+
+    Example
+    -------
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import magma.viz as viz
+
+    dict_1 = {'LA': 3.6, 'SF':0.874, 'Sydney':5.32, 'CDMX': 8.8}
+
+    viz.lollipop_plot(
+        list(dict_1.keys()),
+        list(dict_1.values()),
+        xlabel = 'citizens (millions)',
+        title = 'Population',
+        ylabel = 'city name',
+        sort = True
+    )
+    """
+
+    n_datapoints = len(cats)
+    range_ = np.arange(n_datapoints)
+
+    if not isinstance(values, np.ndarray):
+        values = np.array(list(values))
+    if not isinstance(cats, np.ndarray):
+        cats = np.array(list(cats))
+
+    max_val = values.max()
+    corrector = max_val*0.05
+
+    if sort:
+        sorted_ix = values.argsort()
+        values = values[sorted_ix]
+        cats = cats[sorted_ix]
+
+
+    fig = plt.figure(figsize=(2, n_datapoints * 0.44))
+
+    plt.hlines(y=range_, xmin=0, xmax= values - corrector , color="lightgrey")
+
+    plt.scatter(values, range_, color=color)
+
+    plt.yticks(range_, cats)
+
+    if log:
+        plt.xscale('log')
+
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+
+    if ylabel is not None:
+        plt.ylabel(ylabel)
+
+    if title is not None:
+        plt.title(title)
+
+    plt.tight_layout()
+
+    return fig
 
 # def plot_sample_datashade(df, sample_name, vars_, sample_col = 'sample_id', **kwargs):
 #     """

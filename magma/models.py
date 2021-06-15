@@ -204,6 +204,7 @@ class GNNBase(nn.Module):
 
         return x
 
+	@torch.no_grad()
     def project_to_latent_space(self, data_loader, n_feats, latent_dim):
         """
         Returns a generator to project dataset into latent space,
@@ -379,6 +380,7 @@ class GraphConvNetwork(torch.nn.Module):
 
         return x
 
+	@torch.no_grad()
     def project_to_latent_space(self, data_loader, n_feats, latent_dim):
         """
         Returns a generator to project dataset into latent space,
@@ -757,7 +759,6 @@ class supervised_model(nn.Module):
         #with torch.no_grad()
 
         cuda = torch.cuda.is_available()
-
 
         # Iterate through all of the batches in the DataLoader
         for batch_x, targets in tqdm.tqdm(data_loader):
