@@ -204,7 +204,7 @@ class GNNBase(nn.Module):
 
         return x
 
-	@torch.no_grad()
+    @torch.no_grad()
     def project_to_latent_space(self, data_loader, n_feats, latent_dim):
         """
         Returns a generator to project dataset into latent space,
@@ -380,8 +380,8 @@ class GraphConvNetwork(torch.nn.Module):
 
         return x
 
-	@torch.no_grad()
-    def project_to_latent_space(self, data_loader, n_feats, latent_dim):
+    @torch.no_grad()
+    def project_to_latent_space(self, data_loader, latent_dim):
         """
         Returns a generator to project dataset into latent space,
         i.e. last hidden layer.
@@ -390,9 +390,6 @@ class GraphConvNetwork(torch.nn.Module):
         ------
         data_loader (torch.DataLoader)
             DataLoader which handles the batches and parallelization.
-
-        n_feats (int)
-            Number of dimensions of original dataset.
 
         latent_dim (int)
             Number of dimensions of layer to project onto.
@@ -631,6 +628,8 @@ class GraphAttentionNetwork(nn.Module):
 
         return x
 
+
+    @torch.no_grad()
     def project_to_latent_space(self, data_loader, latent_dim):
         """
         Returns a generator to project dataset into latent space,
