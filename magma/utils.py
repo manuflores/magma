@@ -1325,3 +1325,99 @@ def get_cosine_drug_one_vs_all(drug_name, cosine_arr):
     other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
     cosine_others = cosine_arr[ix_drug, other_cells_ix]
     return cosine_cells_drug, cosine_others
+
+
+def freedman_diaconis_rule(arr):
+	"""
+	Calculates the number of bins for a histogram using the Freedman-Diaconis Rule.
+
+	Modified from https://github.com/justinbois/bebi103/blob/master/bebi103/viz.py
+
+	"""
+	h = 2* (np.percentile(arr, q=75) - np.percentile(arr, q = 25))/ np.cbrt(len(arr))
+
+	if h == 0.0:
+		n_bins = 3
+	else:
+		n_bins = int(np.ceil(arr.max() - arr.min()) / h)
+
+	return n_bins
+
+def l1_norm(arr1, arr2):
+	'''
+	Compute the L1-norm between two histograms.
+	It uses the Freedman-Diaconis criterion to determine the number of bins.
+
+	It will be positive if the mean(arr2) > mean(arr1) following the convention
+	from PopAlign.
+
+	Modified from https://github.com/thomsonlab/popalign/blob/master/popalign/popalign.py
+
+	Parameters
+	----------
+	arr1 (array-like)
+		Distribution of gene for population 1.
+	arr2 (array-like)
+		Distribution of gene for population 2.
+
+	Returns
+	-------
+	l1_score(float)
+		L1 norm between normalized histograms of gene distributions.
+
+	Example
+	-------
+	import numpy as np
+	from sc_utils import sc
+
+	x = np.random.normal(loc = 0, size = 100)
+	y = np.random.normal(loc = 3, size = 100)
+
+	sc.l1_norm(x, y)
+	>>>1.46
+	'''
+
+	if len(arr1) == len(arr2):
+		nbins = freedman_diaconis_rule(arr1)
+
+	else:
+		nbins_1 = freedman_diaconis_rule(arr1)
+		nbins_2 = freedman_diaconis_rule(arr2)
+
+		nbins = int((nbins_1 + nbins_2)/2)
+
+
+	max1, max2 = np.max(arr1), np.max(arr2) # get max values from the two subpopulations
+	max_ = max(max1,max2) # get max value to define histogram range
+	if max_ == 0:
+		return 0
+	else:
+		b1, be1 = np.histogram(arr1, bins=nbins, range=(0,max_)) # compute histogram bars
+		b2, be2 = np.histogram(arr2, bins=nbins, range=(0,max_)) # compute histogram bars
+		b1 = b1/len(arr1) # scale bin values
+		b2 = b2/len(arr2) # scale bin values
+		if arr1.mean()>=arr2.mean(): # sign l1-norm value based on mean difference
+			l1_score = -np.linalg.norm(b1-b2, ord=1)
+			return l1_score
+		else:
+			l1_score = np.linalg.norm(b1-b2, ord=1)
+			return l1_score
+
+
+from scipy import stats
+
+def get_stats(distro_x, distro_y):
+    """
+    Returns statistics from testing that `distro_x` takes larger values that `distro_y`.
+
+    Returns
+    -------
+    ks, pval_ks, l1_score
+    """
+    # For a given value of the data, ECDF of sample 1 takes values less than sample 2
+    ks, pval_ks = stats.ks_2samp(distro_x, distro_y, alternative="less")
+
+    # Positive if mean(distro_x) > mean(distro_y)
+    l1_score = l1_norm(distro_y, distro_x)
+
+    return ks, pval_ks, l1_score
