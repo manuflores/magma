@@ -478,7 +478,7 @@ def plot_node_activations(
 
 
 
-def get_drug_batch(labels_batch, cuda = None):
+def get_drug_batch(labels_batch, name_to_mol, ix_to_name cuda = None):
     "Returns a list of torch.geometric Data object given a list of sample codes."
 
     if cuda is None:
@@ -489,7 +489,7 @@ def get_drug_batch(labels_batch, cuda = None):
     for x in labels_batch:
 
         graph = mol2tensors(
-            name_to_mol[code_to_name[x.item()]]
+            name_to_mol[ix_to_name[x.item()]]
         )
 
         if cuda:
