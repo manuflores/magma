@@ -1310,7 +1310,7 @@ def get_cosine_distribution_drug(drugbank, adata, query_drug_name, perturb_drug_
     return cosine_similarity_distribution
 
 
-def get_cosine_drug_one_vs_all(drugbank, adata, drug_name, cosine_arr):
+def get_cosine_drug_one_vs_all(drugbank, adata, drug_name, cosine_arr, verbose = False):
     """
     Returns the cosine similarity distribution of a molecule with cells perturbed by it,
     and the cos. sim. dist. of the molecule with cells coming from other samples.
@@ -1319,6 +1319,7 @@ def get_cosine_drug_one_vs_all(drugbank, adata, drug_name, cosine_arr):
     n_mols, n_cells = cosine_arr.shape
     ix_drug, ix_cells = get_ix_drug(drugbank, drug_name), get_ix_cells(adata, drug_name)
 
+    print(type(ix_cells))
     # Get cosine similarity distribution of a drug with itself
     cosine_cells_drug = cosine_arr[ix_drug, ix_cells]
 
@@ -1422,3 +1423,37 @@ def get_stats(distro_x, distro_y):
     l1_score = l1_norm(distro_y, distro_x)
 
     return ks, pval_ks, l1_score
+
+
+def ecdf(x, plot = False, label = None)->(np.array, np.array):
+    '''
+    Returns ECDF of a 1-D array. Optionally
+
+    Params
+    ------
+
+    x(array or list)
+    	Input array, distribution of a random variable.
+
+    plot (bool, default= False)
+    	If True return the plot of the ECDF
+
+    label(str)
+    	Label for the plot
+
+    Returns
+	-------
+    x_sorted : sorted x array.
+    ecdf : array containing the ECDF of x.
+
+    '''
+	n = len (x)
+    x_sorted = np.sort(x)
+    ecdf = np.linspace(0, 1, len(x_sorted))
+    if label is None and plot is True:
+        plt.scatter(x_sorted, ecdf, alpha = 0.7)
+    elif label is not None and plot is True:
+        plt.scatter(x_sorted, ecdf, alpha = 0.7, label = label)
+    else:
+    	pass
+    return x_sorted, ecdf
