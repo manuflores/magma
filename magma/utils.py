@@ -1256,3 +1256,72 @@ def get_acc_df_cell2mol(df_cells, name_to_target, name_to_class, k=1):
     accuracy_df['sample_class'] = accuracy_df['drug_name'] + '_' + accuracy_df['drug_class'].str.lower()
 
     return accuracy_df
+
+
+
+
+def get_ix_drug(drugbank, drug_name, verbose = False)->np.ndarray:
+    """Returns index of molecule in drugbank."""
+    try:
+        ix_ = drugbank[drugbank['drug_name'] ==drug_name].index.values[0]
+
+    except :
+        ix_ = drugbank[drugbank['drug_name'].str.contains(drug_name)].index.values[0]
+    if verbose:
+        print('Getting drugbank index for :%s'%drugbank.iloc[ix_]['drug_name'] )
+    return ix_
+
+def get_ix_cells(adata, drug_name, verbose = False)->np.ndarray:
+    """Returns index of cells perturbed by `drug_name` in adata"""
+    try:
+        ix_cells = adata[adata.obs['drug_name']==drug_name].obs.index.values
+    except:
+        ix_cells = adata[adata.obs['drug_name'].str.contains(drug_name)].obs.index.values
+    if verbose :
+        print('Getting adata cell indices for :%s'%adata[ix_cells[0]].obs['drug_name'].values[0] )
+    return ix_cells
+
+
+def get_cosine_distribution_drug(drugbank, adata, query_drug_name, perturb_drug_name, cosine_arr, verbose = False):
+    """
+    Returns the cosine similarity distribution for the cells perturbed with
+    `perturb_drug_name` (indexed in adata), and a molecule `query_drug_name` (indexed in drugbank).
+    If `query_drug_name` and `perturb_drug_name` are the same, it returns the
+    cosine similarity of the given molecule against the cells perturbed by it.
+
+    Params
+    ------
+    query_drug_name (str)
+        Name of the drug to query against.
+
+    perturb_drug_name (str)
+        Name of the drug that perturbed the cells to retrieve.
+
+    Returns
+    -------
+    cosine_similarity_distribution
+
+    Note:Expects cosine_arr to be shape (mols, cells)
+    """
+    ix_drug = get_ix_drug(drugbank, query_drug_name, verbose)
+    ix_cells = get_ix_cells(adata, perturb_drug_name, verbose)
+    cosine_similarity_distribution = cosine_arr[ix_drug, ix_cells]
+
+    return cosine_similarity_distribution
+
+
+def get_cosine_drug_one_vs_all(drug_name, cosine_arr):
+    """
+    Returns the cosine similarity distribution of a molecule with cells perturbed by it,
+    and the cos. sim. dist. of the molecule with cells coming from other samples.
+    """
+    n_mols, n_cells = cosine_arr.shape
+    ix_drug, ix_cells = get_ix_drug(drug_name), get_ix_cells(drug_name)
+
+    # Get cosine similarity distribution of a drug with itself
+    cosine_cells_drug = cosine_arr[ix_drug, ix_cells]
+
+    # Get the indices of all perturbed with other molecules but `drug_name`
+    other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
+    cosine_others = cosine_arr[ix_drug, other_cells_ix]
+    return cosine_cells_drug, cosine_others

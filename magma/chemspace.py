@@ -475,3 +475,28 @@ def plot_node_activations(
         )
 
     return None
+
+
+
+def get_drug_batch(labels_batch, cuda = None):
+    "Returns a list of torch.geometric Data object given a list of sample codes."
+
+    if cuda is None:
+        cuda = torch.cuda.is_available()
+
+    drug_graphs = []
+
+    for x in labels_batch:
+
+        graph = mc.mol2tensors(
+            name_to_mol[code_to_name[x.item()]]
+        )
+
+        if cuda:
+            graph.x = graph.x.cuda()
+            graph.edge_index = graph.edge_index.cuda()
+            graph.edge_attr = graph.edge_attr.cuda()
+
+        drug_graphs.append(graph)
+
+    return drug_graphs

@@ -22,7 +22,7 @@ import torch_geometric
 from torch_geometric.nn import GCNConv, GATConv
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool
 
-
+import copy
 
 class BnLinear(nn.Module):
 	"""Linear layer with batch normalization."""
@@ -1099,6 +1099,9 @@ class JointEmbedding(nn.Module):
     """
     def __init__(self, mol_encoder, cell_encoder):
         super(JointEmbedding, self).__init__()
+
+		mol_encoder = copy.deepcopy(mol_encoder)
+		cell_encoder = copy.deepcopy(cell_encoder)
 
         self.molecule_encoder = mol_encoder
         self.cell_encoder = cell_encoder
