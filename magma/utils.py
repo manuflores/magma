@@ -1445,9 +1445,8 @@ def ecdf(x, plot = False, label = None)->(np.array, np.array):
 	-------
     x_sorted : sorted x array.
     ecdf : array containing the ECDF of x.
-
     '''
-	n = len (x)
+        n = len (x)
     x_sorted = np.sort(x)
     ecdf = np.linspace(0, 1, len(x_sorted))
     if label is None and plot is True:
@@ -1455,5 +1454,5 @@ def ecdf(x, plot = False, label = None)->(np.array, np.array):
     elif label is not None and plot is True:
         plt.scatter(x_sorted, ecdf, alpha = 0.7, label = label)
     else:
-    	pass
+        pass
     return x_sorted, ecdf
