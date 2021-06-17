@@ -1314,10 +1314,10 @@ def get_cosine_drug_one_vs_all(drugbank, adata, drug_name, cosine_arr):
     """
     Returns the cosine similarity distribution of a molecule with cells perturbed by it,
     and the cos. sim. dist. of the molecule with cells coming from other samples.
-    
+
     """
     n_mols, n_cells = cosine_arr.shape
-    ix_drug, ix_cells = get_ix_drug(drugbank, drug_name), get_ix_cells(drugbank, drug_name)
+    ix_drug, ix_cells = get_ix_drug(drugbank, drug_name), get_ix_cells(adata, drug_name)
 
     # Get cosine similarity distribution of a drug with itself
     cosine_cells_drug = cosine_arr[ix_drug, ix_cells]
