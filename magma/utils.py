@@ -1433,26 +1433,20 @@ def ecdf(x, plot = False, label = None)->(np.array, np.array):
     ------
 
     x(array or list)
-    	Input array, distribution of a random variable.
+        Input array, distribution of a random variable.
 
     plot (bool, default= False)
-    	If True return the plot of the ECDF
+        If True return the plot of the ECDF
 
     label(str)
-    	Label for the plot
+        Label for the plot
 
     Returns
-	-------
+    -------
     x_sorted : sorted x array.
     ecdf : array containing the ECDF of x.
     '''
-        n = len (x)
+    n = len (x)
     x_sorted = np.sort(x)
     ecdf = np.linspace(0, 1, len(x_sorted))
-    if label is None and plot is True:
-        plt.scatter(x_sorted, ecdf, alpha = 0.7)
-    elif label is not None and plot is True:
-        plt.scatter(x_sorted, ecdf, alpha = 0.7, label = label)
-    else:
-        pass
     return x_sorted, ecdf
