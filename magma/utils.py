@@ -911,7 +911,8 @@ class adata_torch_dataset(Dataset):
 def get_count_stats(
 	adata,
 	mt_prefix = None,
-	ribo_prefix = None)-> ad.AnnData:
+	ribo_prefix = None
+    )-> ad.AnnData:
 
 	"""
 	Returns an AnnData with extra columns in its `obs` object

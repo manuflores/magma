@@ -351,10 +351,13 @@ class GraphConvNetwork(torch.nn.Module):
     def activations_hook(self, grad):
         self.gradients = grad
 
-    def project(self, data, reg_hook = False):
+    def project(self, data, reg_hook = False, reg_hook_input = False):
         "Projects data up to last hidden layer for visualization."
 
         x, edge_index = data.x, data.edge_index
+
+		if reg_hook_input:
+			h = x.register_hook(self.activations_hook)
 
         for conv_layer in self.conv_encoder:
             x = conv_layer(x, edge_index)
@@ -580,7 +583,7 @@ class GraphAttentionNetwork(nn.Module):
     def get_activations_gradient(self):
         return self.gradients
 
-    def project(self, data, pool = True, reg_hook = False):
+    def project(self, data, pool = True, reg_hook = False, reg_hook_input = False):
         """
         Projects data up to last hidden layer for visualization.
 
@@ -596,6 +599,9 @@ class GraphAttentionNetwork(nn.Module):
         """
 
         x, edge_index = data.x, data.edge_index
+
+		if reg_hook_input :
+			h = x.register_hook(self.activations_hook)
 
         for conv_layer in self.conv_encoder:
             x = conv_layer(x, edge_index)
