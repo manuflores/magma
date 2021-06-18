@@ -356,8 +356,8 @@ class GraphConvNetwork(torch.nn.Module):
 
         x, edge_index = data.x, data.edge_index
 
-		if reg_hook_input:
-			h = x.register_hook(self.activations_hook)
+        if reg_hook_input:
+            h = x.register_hook(self.activations_hook)
 
         for conv_layer in self.conv_encoder:
             x = conv_layer(x, edge_index)
@@ -600,8 +600,8 @@ class GraphAttentionNetwork(nn.Module):
 
         x, edge_index = data.x, data.edge_index
 
-		if reg_hook_input :
-			h = x.register_hook(self.activations_hook)
+        if reg_hook_input :
+            h = x.register_hook(self.activations_hook)
 
         for conv_layer in self.conv_encoder:
             x = conv_layer(x, edge_index)
