@@ -1797,9 +1797,13 @@ class EvaluateCrossRetrieval:
         return top_ixs
 
 
-    def get_cosine_drug_one_vs_all(self, drug_name):
+    def get_cosine_drug_one_vs_all(self, drug_name)->Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns the cosine similarity distributions of a drug with cells perturbed by it,
+        and all other cells coming from other samples. 
+        """
         n_mols, n_cells = self.cosine_arr.shape
-        ix_drug, ix_cells = get_ix_drug(drug_name), get_ix_cells(drug_name)
+        ix_drug, ix_cells = self.get_ix_drug(drug_name), self.get_ix_cells(drug_name)
 
         # Get cosine similarity distribution of a drug with itself
         cosine_cells_drug = self.cosine_arr[ix_drug, ix_cells]
