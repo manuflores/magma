@@ -1673,7 +1673,17 @@ class EvaluateCrossRetrieval:
             'pathway': 'Purples_r'
             }
 
-    def eval(self, plot = False, mode = 'cosine', project_mols = True):
+    def eval_pipeline(
+        self,
+        plot = False,
+        mode = 'cosine',
+        project_mols = True,
+        n_cores = 2
+        ):
+        """
+        Runs all evaluation
+        """
+
         self.compute_cosine_arr(
             return_ = False, project_mols = project_mols, n_dims = 64
         )
@@ -1686,7 +1696,7 @@ class EvaluateCrossRetrieval:
         self.get_acc_df_cell2mol()
 
         # Run KS tests
-        self.run_ks()
+        self.run_ks_one_vs_all(n_cores)
 
         # Run mol2cell above mean
         #self.
@@ -1694,6 +1704,9 @@ class EvaluateCrossRetrieval:
         # Plot results !
         if plot:
             pass
+
+    def eval_summary(self):
+        pass
 
     def get_ix_drug(self, drug_name):
         return self.name_to_ix.get(drug_name, 'None')
@@ -1895,7 +1908,11 @@ class EvaluateCrossRetrieval:
         return ks, pval_ks, l1_score
 
     def run_ks_one_vs_all(
-        self, n_cores = 4, stat_metric = 'ks_pval', thresh_stat = 1e-4, return_ = False
+        self,
+        n_cores = 4,
+        stat_metric = 'ks_pval',
+        thresh_stat = 1e-4,
+        return_ = False
         ):
         """
         Returns results from testing the mol2cell cosine similarity distributions of a drug
@@ -1907,6 +1924,8 @@ class EvaluateCrossRetrieval:
             Number of processors to use for the parallellization.
 
         stat_metric (str, default = 'ks_pval')
+
+        cols (list)
 
         Notes
         -----
@@ -1926,10 +1945,10 @@ class EvaluateCrossRetrieval:
             results, columns = ['ks_score', 'ks_pval', 'l1_score']
         )
 
-        self.drugbank = pd.concat([self.drugbank, df_results], axis = 1)
+        self.drugbank = pd.concat([self.drugbank, self.df_stat_tests], axis = 1)
 
         if "pval" in stat_metric:
-            top_drug_df = df_drugs_test_[df_drugs_test_[stat_metric] < thresh_stat].sort_values(
+            top_drug_df = self.drugbank[self.drugbank[stat_metric] < thresh_stat].sort_values(
                 by=stat_metric, ascending=True
             )
 
