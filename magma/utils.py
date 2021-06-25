@@ -1705,7 +1705,7 @@ class EvaluateCrossRetrieval:
             ix_cells = self.adata[self.adata.obs['drug_name'].str.contains(drug_name)].obs.index.values
         if verbose :
             print('Getting adata cell indices for :%s'%adata[ix_cells[0]].obs['drug_name'].values[0] )
-        return ix_cells
+        return ix_cells.astype(int)
 
     def compute_mol_from_smiles(self):
         self.drugbank['mol'] = self.drugbank.SMILES.apply(
