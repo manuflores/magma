@@ -1891,7 +1891,7 @@ class EvaluateCrossRetrieval:
         return ks, pval_ks, l1_score
 
     def run_ks_one_vs_all(
-        self, drug_name, n_cores = 4, stat_metric = 'ks_pval', thresh_stat = 1e-4, return_ = False
+        self, n_cores = 4, stat_metric = 'ks_pval', thresh_stat = 1e-4, return_ = False
         ):
         """
         Returns results from testing the mol2cell cosine similarity distributions of a drug
