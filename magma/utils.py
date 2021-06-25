@@ -1551,7 +1551,7 @@ def get_cosine_distribution_df(
 
 class EvaluateCrossRetrieval:
     """
-    Base class to evaluate cross modali44ty-retrieval a joint embedding
+    Base class to evaluate cross modality-retrieval a joint embedding
     of cells and molecules.
 
     It is designed for evaluation in a test set, comprised of a tuple
@@ -1942,8 +1942,7 @@ class EvaluateCrossRetrieval:
         self,
         drug_name,
         n_top,
-        cols_viz = ['drug_name', 'target', 'drug_class']
-        drugbank_to_selleck = False,
+        cols_viz = ['drug_name', 'target', 'drug_class'],
         return_acc_only = False,
         filter_by = 'drug_name',
         n_cells_filter = 10
