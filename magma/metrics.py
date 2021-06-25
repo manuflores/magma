@@ -11,6 +11,7 @@
 
 import numpy as np
 import torch
+from typing import Optional, Sequence, Tuple, Union
 
 def generalized_distance_matrix(X,Y):
     """

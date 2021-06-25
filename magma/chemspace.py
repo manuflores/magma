@@ -12,7 +12,8 @@ from rdkit.Chem.Draw import rdMolDraw2D
 from rdkit.Chem import rdFMCS
 from torch_geometric.data import Batch
 from rdkit import Chem
-
+from rdkit.Chem import AllChem
+from rdkit import DataStructs
 
 possible_atom_list = [
 	'S', 'Si', 'F', 'Fl', 'O', 'C', 'I', 'P', 'Cl',
@@ -32,21 +33,18 @@ def atom_hot_encoding(atom, allowable_set):
     """Maps inputs not in the allowable set to the last element."""
     if atom not in allowable_set:
         atom = allowable_set[-1]
-
     return list(map(lambda s: atom == s, allowable_set))
 
 def safe_index(l, e):
 	"Gets the index of elem e in list l."
 	try:
 		return l.index(e)
-
 	# If not in list, map as unknown symbol's index
 	except:
 		return len(l)
 
 def get_feature_list(atom):
 	"Get features for a given atom using RDkit."
-
 	features[safe_index(possible_atom_list, atom.GetSymbol())]
 	return features
 
@@ -180,7 +178,7 @@ def get_fp(mol, bits = 512)->np.array:
 def get_mcs(ref_mol, query_mol):
     """
     Returns the indices of the maximum common substructure (MCS)
-    given a reference molecule and a query molecule.
+	on a query molecule given a reference molecule.
 
     Params
     ------
@@ -194,7 +192,7 @@ def get_mcs(ref_mol, query_mol):
     -------
     ix_matches(tuple)
         Tuple of tuples with indices corresponding to the nodes
-        where a match was found.
+        where a match was found on the query molecule.
     """
 
     res = rdFMCS.FindMCS([ref_mol, query_mol])
@@ -410,7 +408,9 @@ def plot_node_activations(
     mol,
     node_activations,
     fig_fname,
-    plot_cbar = False
+    plot_cbar = False,
+	vmin = None,
+	vmax = None
     ):
 
     """

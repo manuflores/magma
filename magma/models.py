@@ -5,6 +5,7 @@
 # - [>]  supervised_model
 # - [>]  vae
 # - [>]  JointEmbedding
+from typing import Optional, Sequence, Tuple, Union
 
 import tqdm
 import torch
@@ -708,8 +709,6 @@ class supervised_model(nn.Module):
     """
 
     def __init__(self, dims, model = 'regression', dropout = True):
-
-
         super(supervised_model, self).__init__()
 
         self.output_dim = dims[-1]
@@ -1138,3 +1137,95 @@ class JointEmbedding(nn.Module):
         logits = logit_scale* mol_embedding@cell_embedding.t()
 
         return logits
+
+
+def cov_mat(X:torch.Tensor, Y = None)->torch.Tensor:
+    """
+    Returns covariance or cross-covariance matrix. Assumes mean centered data.
+    Note: Always returns a cross-cov matrix with larger rows than columns.
+
+    Params
+    ------
+
+
+    Returns
+    -------
+
+    """
+    N, k = X.shape
+
+    #Compute cross-covariance if Y present
+    if Y is not None:
+        print('Running cross-covariance matrix mode.')
+        N_, d = Y.shape
+
+        # Check matching dimensions in first axis
+        assert N== N_
+
+        #Always return longer rows
+        if k>=d:
+            cov = (1/N) * X.T@Y
+        else:
+            cov = (1/N)*Y.T@X
+        return cov
+
+    cov = (1/N) * X.T@X
+
+    return cov
+
+def cca_torch(Xa, Xb, n_components = None):
+    """
+    Returns weight matrices Wa, Wb corresponding to canonical weights.
+
+    Note: Function assumes that Xa has the same or a smaller dimensionality than Xb,
+          and that data is mean centered.
+
+          Also assumes torch.linalg is imported as `LA`.
+
+	Params
+	------
+
+	Returns
+	-------
+    """
+
+    device = Xa.device
+
+    N, dim_a = Xa.shape
+    n, dim_b = Xb.shape
+
+    assert N==n # Check the same number of entries / datapoints
+
+    assert dim_a<=dim_b # Check Xa has smaller dimensionality
+
+
+    r = 1e-4 # add regularization for invertibility
+
+    # Calculate covariance matrices
+    Caa = cov_mat(Xa) + r*torch.eye(dim_a, device = device)
+    Cbb = cov_mat(Xb)+ r*torch.eye(dim_b, device = device)
+    Cba = cov_mat(Xb, Xa)
+    Cab = Cba.T
+
+    cross_corr = LA.inv(Cbb)@Cba@LA.inv(Caa)@Cab
+
+    # Eigenvectors are the canonical weights for matrix Xb
+    eigvals, Wb = torch.eig(cross_corr, eigenvectors = True)
+
+    # Canonical correlations
+    rhos = torch.sqrt(eigvals)
+
+    # Canonical weights for matrix Xa
+    Wa = torch.zeros((dim_a,dim_a), device = device)
+
+    # Get canonical weights for Wa
+    for i in range(dim_a):
+        alpha = LA.inv(Caa) @ Cab @ Wb[:, i].reshape(-1,1)
+        Wa[:, i] = alpha.flatten()
+
+    # Return top-n eigenvectors
+    if n_components is not None:
+        Wa = Wa[:, :n_components]
+        Wb = Wb[:, :n_components]
+
+    return rhos, Wa, Wb

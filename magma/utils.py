@@ -4,11 +4,17 @@
 #     - [>]  torch_adata
 #     - [>]  try_gpu
 #     - [>]  cells: get_count_stats, log_norm, cv_filter
-from .metrics import accuracy, topk_acc
+from .metrics import accuracy
+from .metrics import topk_acc
+from .metrics import generalized_distance_matrix
+from .metrics import generalized_distance_matrix_torch
+
+from typing import Optional, Sequence, Tuple, Union
 
 import scipy.io as sio
 import scipy.stats as st
 from scipy import sparse
+from scipy import stats
 
 import numpy as np
 import pandas as pd
@@ -21,12 +27,21 @@ import collections
 
 from sklearn import metrics
 from sklearn.utils import sparsefuncs
+from joblib import Parallel, delayed
 
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, IterableDataset, DataLoader
-import torch_geometric
 
+import torch_geometric
+from torch_geometric.data import Batch
+
+from .chemspace import get_drug_batch
+#from rdkit.Chem.Draw import rdMolDraw2D
+#from rdkit.Chem import rdFMCS
+from rdkit import Chem
+from rdkit.Chem import AllChem
+#from rdkit import DataStructs
 
 def train_supervised_gcn(
     model:nn.Module,
@@ -1203,7 +1218,6 @@ def get_ix_nondup(labels):
 
     """
 
-
     if isinstance(labels, torch.Tensor):
         is_tensor = True
         dev = labels.device
@@ -1258,78 +1272,6 @@ def get_acc_df_cell2mol(df_cells, name_to_target, name_to_class, k=1):
 
     return accuracy_df
 
-
-
-
-def get_ix_drug(drugbank, drug_name, verbose = False)->np.ndarray:
-    """Returns index of molecule in drugbank."""
-    try:
-        ix_ = drugbank[drugbank['drug_name'] ==drug_name].index.values[0]
-
-    except :
-        ix_ = drugbank[drugbank['drug_name'].str.contains(drug_name)].index.values[0]
-    if verbose:
-        print('Getting drugbank index for :%s'%drugbank.iloc[ix_]['drug_name'] )
-    return ix_
-
-def get_ix_cells(adata, drug_name, verbose = False)->np.ndarray:
-    """Returns index of cells perturbed by `drug_name` in adata"""
-    try:
-        ix_cells = adata[adata.obs['drug_name']==drug_name].obs.index.values
-    except:
-        ix_cells = adata[adata.obs['drug_name'].str.contains(drug_name)].obs.index.values
-    if verbose :
-        print('Getting adata cell indices for :%s'%adata[ix_cells[0]].obs['drug_name'].values[0] )
-    return ix_cells
-
-
-def get_cosine_distribution_drug(drugbank, adata, query_drug_name, perturb_drug_name, cosine_arr, verbose = False):
-    """
-    Returns the cosine similarity distribution for the cells perturbed with
-    `perturb_drug_name` (indexed in adata), and a molecule `query_drug_name` (indexed in drugbank).
-    If `query_drug_name` and `perturb_drug_name` are the same, it returns the
-    cosine similarity of the given molecule against the cells perturbed by it.
-
-    Note: Expects cosine_arr to be of shape (n_mols, n_cells)
-
-    Params
-    ------
-    query_drug_name (str)
-        Name of the drug to query against.
-
-    perturb_drug_name (str)
-        Name of the drug that perturbed the cells to retrieve.
-
-    Returns
-    -------
-    cosine_similarity_distribution
-
-    Note:Expects cosine_arr to be shape (mols, cells)
-    """
-    ix_drug = get_ix_drug(drugbank, query_drug_name, verbose)
-    ix_cells = get_ix_cells(adata, perturb_drug_name, verbose)
-    cosine_similarity_distribution = cosine_arr[ix_drug, ix_cells]
-
-    return cosine_similarity_distribution
-
-
-def get_cosine_drug_one_vs_all(drugbank, adata, drug_name, cosine_arr, verbose = False):
-    """
-    Returns the cosine similarity distribution of a molecule with cells perturbed by it,
-    and the cos. sim. dist. of the molecule with cells coming from other samples.
-
-    Expects cosine_arr to be of shape (n_mols, n_cells)
-    """
-    n_mols, n_cells = cosine_arr.shape
-    ix_drug, ix_cells = get_ix_drug(drugbank, drug_name), get_ix_cells(adata, drug_name)
-
-    # Get cosine similarity distribution of a drug with itself
-    cosine_cells_drug = cosine_arr[ix_drug, ix_cells]
-
-    # Get the indices of all perturbed with other molecules but `drug_name`
-    other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
-    cosine_others = cosine_arr[ix_drug, other_cells_ix]
-    return cosine_cells_drug, cosine_others
 
 
 def freedman_diaconis_rule(arr):
@@ -1408,26 +1350,6 @@ def l1_norm(arr1, arr2):
 			l1_score = np.linalg.norm(b1-b2, ord=1)
 			return l1_score
 
-
-from scipy import stats
-
-def get_stats(distro_x, distro_y):
-    """
-    Returns statistics from testing that `distro_x` takes larger values that `distro_y`.
-
-    Returns
-    -------
-    ks, pval_ks, l1_score
-    """
-    # For a given value of the data, ECDF of sample 1 takes values less than sample 2
-    ks, pval_ks = stats.ks_2samp(distro_x, distro_y, alternative="less")
-
-    # Positive if mean(distro_x) > mean(distro_y)
-    l1_score = l1_norm(distro_y, distro_x)
-
-    return ks, pval_ks, l1_score
-
-
 def ecdf(x)->(np.array, np.array):
     '''
     Returns ECDF of a 1-D array.
@@ -1447,3 +1369,768 @@ def ecdf(x)->(np.array, np.array):
     x_sorted = np.sort(x)
     ecdf = np.linspace(0, 1, len(x_sorted))
     return x_sorted, ecdf
+
+def get_stats(distro_x, distro_y):
+    """
+    Returns statistics from testing that `distro_x` takes larger values that `distro_y`.
+
+    Returns
+    -------
+    ks, pval_ks, l1_score
+    """
+    # For a given value of the data, ECDF of sample 1 takes values less than sample 2
+    ks, pval_ks = stats.ks_2samp(distro_x, distro_y, alternative="less")
+
+    # Positive if mean(distro_x) > mean(distro_y)
+    l1_score = l1_norm(distro_y, distro_x)
+
+    return ks, pval_ks, l1_score
+
+
+def get_ix_drug(drugbank, drug_name, verbose = False)->np.ndarray:
+    """Returns index of molecule in drugbank."""
+    try:
+        ix_ = drugbank[drugbank['drug_name'] ==drug_name].index.values[0]
+
+    except :
+        ix_ = drugbank[drugbank['drug_name'].str.contains(drug_name)].index.values[0]
+    if verbose:
+        print('Getting drugbank index for :%s'%drugbank.iloc[ix_]['drug_name'] )
+    return ix_
+
+def get_ix_cells(adata, drug_name, verbose = False)->np.ndarray:
+    """Returns index of cells perturbed by `drug_name` in adata"""
+    try:
+        ix_cells = adata[adata.obs['drug_name']==drug_name].obs.index.values
+    except:
+        ix_cells = adata[adata.obs['drug_name'].str.contains(drug_name)].obs.index.values
+    if verbose :
+        print('Getting adata cell indices for :%s'%adata[ix_cells[0]].obs['drug_name'].values[0] )
+    return ix_cells
+
+
+def get_cosine_distribution_drug(drugbank, adata, query_drug_name, perturb_drug_name, cosine_arr, verbose = False):
+    """
+    Returns the cosine similarity distribution for the cells perturbed with
+    `perturb_drug_name` (indexed in adata), and a molecule `query_drug_name` (indexed in drugbank).
+    If `query_drug_name` and `perturb_drug_name` are the same, it returns the
+    cosine similarity of the given molecule against the cells perturbed by it.
+
+    Note: Expects cosine_arr to be of shape (n_mols, n_cells)
+
+    Params
+    ------
+    query_drug_name (str)
+        Name of the drug to query against.
+
+    perturb_drug_name (str)
+        Name of the drug that perturbed the cells to retrieve.
+
+    Returns
+    -------
+    cosine_similarity_distribution
+
+    Note:Expects cosine_arr to be shape (mols, cells)
+    """
+    ix_drug = get_ix_drug(drugbank, query_drug_name, verbose)
+    ix_cells = get_ix_cells(adata, perturb_drug_name, verbose)
+    cosine_similarity_distribution = cosine_arr[ix_drug, ix_cells]
+
+    return cosine_similarity_distribution
+
+
+def get_cosine_drug_one_vs_all(
+    drugbank,
+    adata,
+    drug_name,
+    cosine_arr,
+    verbose = False
+):
+    """
+    Returns the cosine similarity distribution of a molecule with cells perturbed by it,
+    and the cos. sim. dist. of the molecule with cells coming from other samples.
+
+    Expects cosine_arr to be of shape (n_mols, n_cells)
+    """
+    n_mols, n_cells = cosine_arr.shape
+    ix_drug, ix_cells = get_ix_drug(drugbank, drug_name), get_ix_cells(adata, drug_name)
+
+    # Get cosine similarity distribution of a drug with itself
+    cosine_cells_drug = cosine_arr[ix_drug, ix_cells]
+
+    # Get the indices of all perturbed with other molecules but `drug_name`
+    other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
+    cosine_others = cosine_arr[ix_drug, other_cells_ix]
+    return cosine_cells_drug, cosine_others
+
+
+def get_cosine_distribution_df(
+    drug_name,
+    drugbank,
+    adata,
+    cosine_arr,
+    drugbank_to_selleck,
+    n_top = 10000,
+    cols_viz = ['sample_class', 'target', 'drug_class', 'pn', 'drug_name'],
+    filter_by = 'sample_class',
+    n_cells_filter = 5,
+    anti = False,
+    return_acc_only = False
+)->pd.DataFrame:
+    """
+    Returns an annotated dataframe of the cells with highest cosine similarity to
+    a query molecule `drug_name`.
+
+    Notes: Assumes an adata and drugbank (dataframe) exist and that their indices
+    have been reset.
+
+    Params
+    ------
+    drug_name (str)
+    n_top (int, default= 10000,)
+        Number of cells with highest similarity to retrieve.
+
+    cols_viz (list, default= ['sample_class', 'target', 'drug_class', 'pn'], )
+        Which columns to use for visualization. Cols have to be in adata.
+
+    filter_by (str, default= 'sample_class')
+        Column to filter noise cells.
+
+    n_cells_filter (int, default = 5,)
+        Lower bound threshold above to which filter noise cells, i.e.
+        if a sample has less than `n_cells_filter` in the top cells,
+        that sample won't be in the final visualization.
+
+    anti (bool = False)
+        Whether to reverse order, get cells with lowest cosine similarity.
+
+    Returns
+    -------
+    df_viz
+    """
+    ix_ = get_ix_drug(drugbank, drug_name, verbose = False)
+
+    name_of_drug = drugbank.iloc[ix_]['drug_name']
+    name_of_drug = drugbank_to_selleck[name_of_drug]
+    print('Returning predictions for %s'%name_of_drug)
+
+    # Reverse order : get cells with lowest cosine sim
+    if anti:
+        ix_top_cells = np.argsort(cosine_arr[ix_])[:n_top]
+    else:
+        ix_top_cells = np.argsort(cosine_arr[ix_])[::-1][:n_top]
+
+    # Make a dataframe containing the cosine similarities and cols_viz
+    df_viz = adata[ix_top_cells].obs[cols_viz]
+
+    #try:
+    sample_val_counts = df_viz.drug_name.value_counts()
+    if name_of_drug in sample_val_counts.index.values:
+        n_correct = sample_val_counts[name_of_drug]
+
+        acc = n_correct / sample_val_counts.sum() * 100
+        print('Accuracy: %.3f'%acc)
+        if return_acc_only:
+            return acc
+        else:
+            pass
+    else:
+        print('Accuracy: 0')
+        if return_acc_only:
+            return 0
+    #except:
+   #     pass
+
+    df_viz['cosine_similarity'] = cosine_arr[ix_][ix_top_cells]
+    val_counts = df_viz[filter_by].value_counts()
+    samples_in = val_counts[val_counts > n_cells_filter].index.values
+
+    return df_viz[df_viz[filter_by].isin(samples_in)]
+
+
+
+class EvaluateCrossRetrieval:
+    """
+    Base class to evaluate cross modali44ty-retrieval a joint embedding
+    of cells and molecules.
+
+    It is designed for evaluation in a test set, comprised of a tuple
+    (test molecules, test cells). Nevertheless, one can pass the full datasets
+    and still leverage the functionalities.
+    """
+    def __init__(
+        self,
+        df_drugs,
+        adata,
+        model,
+        model_type = 'nn',
+        dataset = 'thomsonlab',
+        drugs_col_name = 'sample_id'
+    ):
+        """
+        Params
+        ------
+        df_drugs (pd.DataFrame)
+            Annotated version of the drugs in the test set.
+            It must ideally have the following in its columns:
+            ['drug_class', 'target', 'drug_name']
+
+        adata(pd.DataFrame)
+            Test adata containing count matrix as .X and projected cells in its
+            `obs.` dataframe.
+
+        model (nn.Module)
+            Joint embedding model. to-do: extend functionality for CCA or other models.
+
+        model_type(str, default = 'nn')
+            Running neural net or CCA model.
+
+        dataset(str, default = 'thomsonlab')
+            Sets the formmatting options for a specific dataset.
+
+        drugs_col_name(str, default = 'sample_id')
+            If there's a specific column name for the name of drugs in the df_drugs dataset.
+
+        """
+
+        self.cuda = torch.cuda.is_available()
+
+        # Format column names
+        if 'drug_name' not in adata.obs.columns:
+            if dataset == 'thomsonlab':
+                adata.obs['drug_name'] = adata.obs['sample_id'].apply(
+                    lambda x: sample_to_name(str(x), eliminate_parens = True, eliminate_hcl = False)
+                ).str.lower()
+
+            elif dataset == 'sciplex':
+                adata.obs['drug_name'] = adata.obs['product_name'].apply(
+                    lambda x: sample_to_name(str(x), eliminate_parens = True, eliminate_hcl = False)
+                ).str.lower()
+
+        if 'drug_name' not in df_drugs:
+            df_drugs['drug_name'] = df_drugs[drugs_col_name].apply(
+                lambda x: sample_to_name(str(x), eliminate_parens = True, eliminate_hcl = False)
+            ).str.lower()
+
+        df_drugs_test = df_drugs[df_drugs.drug_name.isin(adata.obs.drug_name.unique())]
+
+        if dataset == 'sciplex':
+            df_drugs_test.drop_duplicates(subset = ['drug_name'], inplace = True)
+
+        # Check drugs in both datasets coincide
+        #assert len(set(adata.obs.drug_name.unique()) - set(df_drugs_test.drug_name.unique())) == 0, 'Drugs in both datasets do not coincide'
+
+        # We will use numpy-indexing so reset them
+        adata.obs.reset_index(drop = True, inplace = True)
+        df_drugs_test.reset_index(drop = True, inplace = True)
+
+        # Assign an index to each drug.
+        codes, unique_drugs = np.arange(len(df_drugs_test)), df_drugs_test.drug_name.values #pd.factorize(df_drugs_test['drug_name'])
+
+        # Make sure we only have unique drugs
+        assert len(unique_drugs) == df_drugs_test.drug_name.unique().shape[0]
+
+        df_drugs_test['sample_code'] = codes
+
+        self.drugbank = df_drugs_test
+        self.adata = adata
+        self.model = model
+
+        self.ix_to_name = dict(zip(codes, unique_drugs))
+        #dict(df_drugs_test[['sample_code', 'drug_name']].values)
+        self.name_to_ix = dict(zip(unique_drugs, codes))
+        #{val:key for key,val in self.ix_to_name.items()}
+
+        self.sample_counts = adata.obs.drug_name.value_counts()
+        self.sample_counts_idx = {
+            self.name_to_ix[sample]: self.sample_counts[sample] \
+            for sample in self.sample_counts.keys()
+        }
+
+        self.test_drugs = self.drugbank.drug_name.values
+
+        # Make drug target and drug class annotation dictionaries
+        if dataset == 'sciplex':
+            self.name_to_target = dict(adata.obs[['drug_name', 'target']].values)
+        else:# thomsonlab
+            self.drugbank.rename(columns = {'Target': 'target'}, inplace = True)
+            self.name_to_target = dict(df_drugs_test[['drug_name', 'target']].values)
+            self.name_to_class = dict(df_drugs_test[['drug_name','drug_class']].values)
+
+        self.test_drugs_ixs = [self.name_to_ix[drug] for drug in self.test_drugs]
+
+        # For each cell, get its perturbation's index
+        self.ix_samples_cell = np.array(
+            [self.name_to_ix[drug] for drug in self.adata.obs['drug_name'].values]
+        )
+
+        # Assign some colormaps for plotting
+        self.colormaps = {
+            'drug_class': 'Blues_r',
+            'within_class_acc': 'Blues_r',
+            'Target': 'Oranges_r', 'target': 'Oranges_r',
+            'pn': 'Greens_r',
+            'pathway': 'Purples_r'
+            }
+
+    def eval(self, plot = False, mode = 'cosine', project_mols = True):
+        self.compute_cosine_arr(
+            return_ = False, project_mols = project_mols, n_dims = 64
+        )
+
+        # Saves mol2cell accuracies in self.m2c_acc and in self.drugbank
+        self.eval_mol2cell_accuracy(mode= mode, return_ = False)
+
+        # Saves results in self.df_c2m for top5 accuracy
+        self.eval_cell2mol_accuracy()
+        self.get_acc_df_cell2mol()
+
+        # Run KS tests
+        self.run_ks()
+
+        # Run mol2cell above mean
+        #self.
+
+        # Plot results !
+        if plot:
+            pass
+
+    def get_ix_drug(self, drug_name):
+        return self.ix_to_name.get(drug_name, 'None')
+
+    def get_ix_cells(self, drug_name, verbose = False):
+        try:
+            ix_cells = self.adata[self.adata.obs['drug_name']==drug_name].obs.index.values
+        except:
+            ix_cells = self.adata[self.adata.obs['drug_name'].str.contains(drug_name)].obs.index.values
+        if verbose :
+            print('Getting adata cell indices for :%s'%adata[ix_cells[0]].obs['drug_name'].values[0] )
+        return ix_cells
+
+    def compute_mol_from_smiles(self):
+        self.drugbank['mol'] = self.drugbank.SMILES.apply(
+            Chem.MolFromSmiles
+        )
+
+        self.name_to_mol = dict(self.drugbank[['drug_name', 'mol']].values)
+
+    @torch.no_grad()
+    def project_molecules(self):
+        """
+        Computes molecule embeddings in self.drugbank df.
+        """
+        #Get Rdkit mols in place
+        self.compute_mol_from_smiles()
+
+        labels_tensor = torch.arange(len(self.drugbank))
+
+        drugs_tensor = get_drug_batch(
+            labels_tensor,
+            self.name_to_mol,
+            self.ix_to_name,
+            cuda = self.cuda
+        )
+
+        self.model.eval()
+
+        mol_embedding = self.model.molecule_encoder.project(
+            Batch.from_data_list(drugs_tensor)
+        )
+
+        if self.cuda: # bring to CPU
+            mol_embedding=mol_embedding.cpu().numpy()
+        else:
+            mol_embedding = mol_embedding.numpy()
+
+        return mol_embedding
+
+    def compute_cosine_arr(self, return_ = False, project_mols = False, n_dims = 64):
+        """
+        Computes cosine array. It stores an output array
+        """
+        if project_mols:
+            mol_embedding = self.project_molecules()
+        else:
+            mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,n_dims +1)]].values
+
+        cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]].values
+        # Normalize to make row vectors
+        mol_embedding_norm  = mol_embedding / np.linalg.norm(mol_embedding, axis = 1).reshape(-1,1)
+        cell_embedding_norm = cell_embedding / np.linalg.norm(cell_embedding, axis = 1).reshape(-1,1)
+
+        # Compute cosine similarity
+        cosine_arr = mol_embedding_norm@cell_embedding_norm.T
+        # shape (molecules, cells)
+        print('Shape of cosine similarity array: {0}'.format(cosine_arr.shape))
+        self.cosine_arr = cosine_arr
+
+        if return_:
+            return cosine_arr
+
+    def compute_dist_arr(self):
+        #self.D
+        #self.top_ixs_l2
+        pass
+
+    def get_top_ixs(self, data_type = 'mols', mode = 'cosine', top_k = 15):
+        "Returns the top indices from a cosine similarity or L2 distance matrix."
+        axis = 1 if data_type == 'mols' else 0
+        #print(axis)
+        largest = True if mode == 'cosine' else 0
+
+        if data_type == 'mols':
+            top_k = self.sample_counts.max()
+        if mode == 'cosine':
+            top_ixs = (
+                torch.from_numpy(self.cosine_arr)
+                .topk(k=top_k, largest=largest, dim=axis)
+                .indices.numpy()
+            )
+
+        else: # distance matrix
+            top_ixs = (
+                torch.from_numpy(self.D)
+                .topk(k=top_k, largest=largest, dim=axis)
+                .indices.numpy()
+            )
+
+        return top_ixs
+
+
+    def get_cosine_drug_one_vs_all(self, drug_name):
+        n_mols, n_cells = self.cosine_arr.shape
+        ix_drug, ix_cells = get_ix_drug(drug_name), get_ix_cells(drug_name)
+
+        # Get cosine similarity distribution of a drug with itself
+        cosine_cells_drug = self.cosine_arr[ix_drug, ix_cells]
+
+        # Get the indices of all perturbed with other molecules but `drug_name`'s
+        other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
+        cosine_others = self.cosine_arr[ix_drug, other_cells_ix]
+        return cosine_cells_drug, cosine_others
+
+
+
+    def eval_mol2cell_accuracy(self, mode= 'cosine', return_ = False):
+
+        top_ixs_mols = self.get_top_ixs(data_type = 'mols', mode = mode)
+
+        # Initialize molecule accuracies list
+        accs = []
+        for i, drug_ix in enumerate(self.test_drugs_ixs):
+
+            # Get the drug indices for each of the top cells given molecule query
+            top_ix_mol = self.ix_samples_cell[top_ixs_mols[i]]
+
+            # Get only the top n indices, for n the number of cells sampled in experiment
+            top_ix_mol_normalized = top_ix_mol[: int(self.sample_counts_idx[drug_ix])]
+
+            # Acc : fraction of correct cells
+            acc = np.sum(top_ix_mol_normalized == drug_ix) / (self.sample_counts_idx[drug_ix]) * 100
+
+            accs.append(acc)
+
+        self.m2c_acc = accs
+        self.drugbank['accuracy'] = accs
+
+        if return_:
+            return accs
+
+    def eval_cell2mol_accuracy(self, mode = 'cosine'):
+        top_ixs_cells = self.get_top_ixs(data_type = 'cells', mode = mode).T
+
+        acc_indicator = np.zeros((self.adata.n_obs, 5))
+
+        if isinstance(self.test_drugs_ixs, list):
+            self.test_drugs_ixs = np.array(self.test_drugs_ixs)
+
+        for i, sample_ix in tqdm.tqdm(enumerate(self.ix_samples_cell)):
+
+            # Get top 1, top3, top5, 10, and 15 accuracy
+            acc_indicator[i, 0] = 1 if sample_ix == self.test_drugs_ixs[top_ixs_cells[i, 0]] else 0
+            acc_indicator[i, 1] = 1 if sample_ix in self.test_drugs_ixs[top_ixs_cells[i, :3]] else 0
+            acc_indicator[i, 2] = 1 if sample_ix in self.test_drugs_ixs[top_ixs_cells[i, :5]] else 0
+            acc_indicator[i, 3] = 1 if sample_ix in self.test_drugs_ixs[top_ixs_cells[i, :10]] else 0
+            acc_indicator[i, 4] = 1 if sample_ix in self.test_drugs_ixs[top_ixs_cells[i, :15]] else 0
+
+
+        self.c2m_global_acc = acc_indicator.sum(axis = 0)/ self.adata.n_obs *100
+
+        ks = [1, 3, 5, 10, 15]
+        df_acc = pd.DataFrame(acc_indicator, columns = ['top' + str(i) + '_accuracy' for i in ks])
+
+        self.adata.obs = pd.concat([self.adata.obs, df_acc.set_index(self.adata.obs.index)], axis = 1)
+
+
+    def eval_m2c_mean(self, drug_name, mode = 'mean'):
+        """
+        Computes the fraction of cells that have cosine similarity w.r.t. to its own molecule
+        higher than the mean of the distribution across all cells.
+        """
+        drug_ix = self.get_drug_ix(drug_name)
+
+        # Get cosine distribution for drug and all others
+        cosine_distro_drug, cosine_distro_others = self.get_cosine_drug_one_vs_all(drug_name)
+
+        if mode=='mean':
+            central_measure = np.concatenate([ cosine_distro_drug, cosine_distro_others]).mean()
+        elif mode=='median':
+            central_measure = np.median(np.concatenate([ cosine_distro_drug, cosine_distro_others]))
+        else:
+            raise NotImplementedError('%s is not implemented'%mode)
+
+        n_significant = (cosine_distro_drug > central_measure).sum()
+        percent_significant = n_significant / len(cosine_distro_drug) * 100
+
+        return percent_significant
+
+    def run_ks_test(self, drug_name):
+        "Returns statistics of running one vs all test for a given drug."
+        own, others = self.get_cosine_drug_one_vs_all(drug_name)
+        ks, pval_ks, l1_score = get_stats(own, others)
+        return ks, pval_ks, l1_score
+
+    def run_ks_one_vs_all(
+        self, drug_name, n_cores = 4, stat_metric = 'ks_pval', thresh_stat = 1e-4, return_ = False
+        ):
+        """
+        Returns results from testing the mol2cell cosine similarity distributions of a drug
+        with cells perturbed by it, and other cells.
+
+        Params
+        ------
+        n_cores (int, default = 4)
+            Number of processors to use for the parallellization.
+
+        stat_metric (str, default = 'ks_pval')
+
+        Notes
+        -----
+        The rationale is that the cosine similarity between a given drug and cells pertrubed by it
+        should be higher than to all other cells if the model has learnt a meaningful relationship.
+
+        Runs on parallel using joblib.
+        """
+
+        results = Parallel(n_jobs = n_cores)(
+            delayed(run_test)(drug) for drug in tqdm.tqdm(self.test_drugs)
+        )
+
+        self.df_stat_tests = pd.DataFrame(
+            results, columns = ['ks_score', 'ks_pval', 'l1_score']
+        )
+
+        self.drugbank = pd.concat([self.drugbank, df_results], axis = 1)
+
+        if "pval" in stat_metric:
+            top_drug_df = df_drugs_test_[df_drugs_test_[stat_metric] < thresh_stat].sort_values(
+                by=stat_metric, ascending=True
+            )
+
+        # use score
+        elif "score" in stat_metric:
+            top_drug_df = df_drugs_test_[df_drugs_test_[stat_metric] > thresh_stat].sort_values(
+                by=stat_metric, ascending=False
+            )
+
+        else:
+            raise AssertionError('metric should be either pvalue or score.')
+
+        self.top_drugs_ks = top_drug_df
+
+    def get_cosine_distribution_df(
+        self,
+        drug_name,
+        n_top,
+        cols_viz = ['drug_name', 'target', 'drug_class']
+        drugbank_to_selleck = False,
+        return_acc_only = False,
+        filter_by = 'drug_name',
+        n_cells_filter = 10
+        ):
+        """
+        Returns a dataframe of the cells closest to a molecule, grouped by sample.
+
+        Params
+        ------
+        filter_by (str, default = 'drug_name')
+            Column to filter out spurious high similarity.
+        """
+
+        ix_ = self.get_ix_drug(drugbank, drug_name, verbose = False)
+
+        name_of_drug = self.name_to_ix[ix_] #drugbank.iloc[ix_]['drug_name']
+
+        #name_of_drug = drugbank_to_selleck[name_of_drug]
+        print('Returning predictions for %s'%name_of_drug)
+
+        # Reverse order : get cells with lowest cosine sim
+        if anti:
+            ix_top_cells = np.argsort(self.cosine_arr[ix_])[:n_top]
+        else:
+            ix_top_cells = np.argsort(self.cosine_arr[ix_])[::-1][:n_top]
+
+        # Make a dataframe containing the cosine similarities and cols_viz
+        df_viz = self.adata[ix_top_cells].obs[cols_viz]
+
+        #try:
+        sample_val_counts = df_viz.drug_name.value_counts()
+        if name_of_drug in sample_val_counts.index.values:
+            n_correct = sample_val_counts[name_of_drug]
+
+            acc = n_correct / sample_val_counts.sum() * 100
+            print('Accuracy: %.3f'%acc)
+            if return_acc_only:
+                return acc
+            else:
+                pass
+        else:
+            print('Accuracy: 0')
+            if return_acc_only:
+                return 0
+        #except:
+       #     pass
+
+        df_viz['cosine_similarity'] = cosine_arr[ix_][ix_top_cells]
+        val_counts = df_viz[filter_by].value_counts()
+        samples_in = val_counts[val_counts > n_cells_filter].index.values
+        return df_viz[df_viz[filter_by].isin(samples_in)]
+
+
+    def plot_top_mol2cell(self):
+        "Assumes `eval_mol2cell_accuracy` has been executed."
+        try:
+            self.drugbank['name_class'] = self.drugbank['name']+ ['_'] + self.drugbank['drug_class']
+        except:
+            pass
+
+        fig = plt.figure(figsize =(1, 4))
+        try:
+            sns.heatmap(
+                self.drugbank.sort_values(by = 'accuracy', ascending = False).head(15).set_index('name_class')['accuracy'].to_frame(),
+                cmap = 'mako_r', annot = True, label = 'accuracy (%)', vmin = 0, #vmax = 35
+                       )
+
+        except:
+            sns.heatmap(
+                self.drugbank.sort_values(by = 'accuracy', ascending = False).head(15).set_index('drug_name')['accuracy'].to_frame(),
+                cmap = 'mako_r', annot = True, label = 'accuracy (%)', vmin = 0, #vmax = 35
+                       )
+
+    def plot_boxplot_m2c(self, plot = 'accuracy', cat = 'drug_class', filt_by = 0):
+        #plot = "accuracy"
+        #by = "drug_class"
+
+        fig = plt.figure(figsize=(3, 4))
+
+        sns.boxplot(
+            data=self.drugbank[self.drugbank[plot] > filt_by].sort_values(
+                by=[plot, cat], ascending=False
+            ),
+            x=plot,
+            y=cat,
+            color="lightgrey",  # alpha = 0.4
+        )
+
+        sns.stripplot(
+            data=self.drugbank[self.drugbank[plot] > 1].sort_values(
+                by=[plot, cat], ascending=False
+            ),
+            x=plot,
+            y=cat,
+            palette=self.colormaps[cat],
+        )
+
+        return fig
+
+    def plot_ks(self, export = True, path_figs= '../figs'):
+        """
+        Plots ECDFs of cosine similarity distributions of correct drug vs all others.
+        Considers only top drugs. Assumes `run_ks()` has been called already.
+
+        """
+        # Assert if self.top_drug_ks exists.
+
+        for i, data in self.top_drug_ks.iterrows():
+            drug_ = data['drug_name']
+            print(drug_)
+            drug = drug_.split()[0]
+            print(drug)
+            acc = data['accuracy']
+            #within_class_acc = data['within_class_acc']
+            ks, pval, l1_score = results[i]
+
+            pval = np.log10(pval)
+
+            own, others = self.get_cosine_drug_one_vs_all(
+                    df_drugs_test, adata, drug_, cosine_arr
+                )
+
+            sorted_drug, ecdf_drug = ecdf(own)
+            sorted_other, ecdf_other = ecdf(others)
+
+            plt.figure(figsize = (3.5, 1.7))
+            plt.plot(sorted_drug, ecdf_drug, label = drug + ' cells', color = 'dodgerblue')
+            plt.plot(sorted_other, ecdf_other, label = 'cells from other samples', color = 'lightgrey')
+            plt.legend(
+                #title = 'KS: %.2f, pval: %.3f, l1: %.2f'%(ks, pval, l1_score),
+                bbox_to_anchor = (1.04, 0), loc = 'lower left'
+                      )
+
+            plt.title('One-vs-rest test KS: %.2f, pval: 1x10^ %.1f, l1: %.2f \n acc: %.1f'%(
+                ks, pval, l1_score, acc
+            ),)
+            plt.xlabel(r'$\mathrm{cos} \theta$ to %s mol.'%drug)
+            plt.ylabel('ECDF')
+
+            if export:
+                plt.savefig(
+                    os.path.join(path_figs, drug + '_ks_test_%s.png'%model_name), bbox_inches = 'tight', dpi = 230
+                );
+
+    def get_acc_df_cell2mol(self, k=5, return_ = True):
+
+        """
+        Returns a top-k accuracy dataframe per sample.
+
+        Params
+        ------
+        df_cells (pd.DataFrame)
+            Cell dataframe (from adata or df_embedding) that contains the top-k accuracy.
+
+        """
+
+        df_cells = self.adata.obs
+
+        #name_to_target = None, name_to_class= None,
+
+        pred_df = (
+            df_cells.groupby(["drug_name", "top" + str(k) + "_accuracy"]).size().unstack().fillna(0)
+        )
+
+        pred_arr = pred_df.values / pred_df.values.sum(axis=1).reshape(-1, 1) * 100
+
+        perc_pred_df = pd.DataFrame(pred_arr, index=pred_df.index, columns=pred_df.columns)
+
+        accuracy_df = (
+            perc_pred_df.sort_values(by=0, ascending=True)[1].to_frame().reset_index()
+        )
+
+        accuracy_df.rename(columns = {1:'top'+ str(k) + '_accuracy'}, inplace = True)
+
+        try:
+            if self.name_to_target is not None:
+                accuracy_df['target'] = accuracy_df['drug_name'].map(name_to_target)
+                #accuracy_df['name_target'] = accuracy_df['drug_name'] + '_' + accuracy_df['target'].str.lower()
+        except:
+            pass
+        try:
+            if self.name_to_class is not None:
+                accuracy_df['drug_class'] = accuracy_df['drug_name'].map(name_to_class)
+                accuracy_df['sample_class'] = accuracy_df['drug_name'] + '_' + accuracy_df['drug_class'].str.lower()
+        except:
+            pass
+
+        self.c2m_acc = accuracy_df
+        if return_:
+            return accuracy_df

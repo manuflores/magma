@@ -160,7 +160,14 @@ def radar_chart(categories, values, color = 'lightgreen'):
 
 
 def lollipop_plot(
-    cats, values, title=None, xlabel=None, ylabel=None, sort = False, color="lightblue",
+    cats, values,
+    title=None,
+    xlabel=None,
+    ylabel=None,
+    sort = False,
+    color="lightblue",
+    figsize = None,
+    xlim = None,
     log = False
 ):
     """
@@ -217,8 +224,10 @@ def lollipop_plot(
         values = values[sorted_ix]
         cats = cats[sorted_ix]
 
-
-    fig = plt.figure(figsize=(2, n_datapoints * 0.44))
+    if figsize is not None:
+        fig = plt.figure(figsize = figsize)
+    else:
+        fig = plt.figure(figsize=(2, n_datapoints * 0.44))
 
     plt.hlines(y=range_, xmin=0, xmax= values - corrector , color="lightgrey")
 
@@ -237,6 +246,10 @@ def lollipop_plot(
 
     if title is not None:
         plt.title(title)
+
+    if xlim is not None:
+        plt.xlim(xlim)
+
 
     plt.tight_layout()
 
