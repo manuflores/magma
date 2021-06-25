@@ -1913,7 +1913,7 @@ class EvaluateCrossRetrieval:
         """
 
         results = Parallel(n_jobs = n_cores)(
-            delayed(run_test)(drug) for drug in tqdm.tqdm(self.test_drugs)
+            delayed(self.run_ks_test)(drug) for drug in tqdm.tqdm(self.test_drugs)
         )
 
         self.df_stat_tests = pd.DataFrame(
