@@ -1963,10 +1963,13 @@ class EvaluateCrossRetrieval:
 
         self.top_drugs_ks = top_drug_df
 
+        if return_:
+            return top_drug_df
+
     def get_cosine_distribution_df(
         self,
         drug_name,
-        n_top,
+        n_top = None,
         cols_viz = ['drug_name', 'target', 'drug_class'],
         return_acc_only = False,
         filter_by = 'drug_name',
@@ -1981,7 +1984,10 @@ class EvaluateCrossRetrieval:
             Column to filter out spurious high similarity.
         """
 
-        ix_ = self.get_ix_drug(drugbank, drug_name, verbose = False)
+        if n_top is None:
+            n_top = self.adata[self.adata.obs.drug_name == drug_name]
+
+        ix_ = self.get_ix_drug(drug_name, verbose = False)
 
         name_of_drug = self.name_to_ix[ix_] #drugbank.iloc[ix_]['drug_name']
 
