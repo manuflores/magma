@@ -1884,7 +1884,7 @@ class EvaluateCrossRetrieval:
         Computes the fraction of cells that have cosine similarity w.r.t. to its own molecule
         higher than the mean of the distribution across all cells.
         """
-        drug_ix = self.get_drug_ix(drug_name)
+        drug_ix = self.get_ix_drug(drug_name)
 
         # Get cosine distribution for drug and all others
         cosine_distro_drug, cosine_distro_others = self.get_cosine_drug_one_vs_all(drug_name)
@@ -2074,7 +2074,7 @@ class EvaluateCrossRetrieval:
 
         return fig
 
-    def plot_ks(self, export = True, path_figs= '../figs'):
+    def plot_ks(self, export = True, path_figs= '../figs', model_name = ''):
         """
         Plots ECDFs of cosine similarity distributions of correct drug vs all others.
         Considers only top drugs. Assumes `run_ks()` has been called already.
