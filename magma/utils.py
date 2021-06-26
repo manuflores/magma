@@ -2003,6 +2003,7 @@ class EvaluateCrossRetrieval:
 
         # Make a dataframe containing the cosine similarities and cols_viz
         df_viz = self.adata[ix_top_cells].obs[cols_viz]
+        df_viz['drug_name'] = df_viz['drug_name'].astype(str)
 
         #try:
         sample_val_counts = df_viz.drug_name.value_counts()
