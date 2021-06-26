@@ -2085,7 +2085,7 @@ class EvaluateCrossRetrieval:
         #print(drug)
         #acc = data['accuracy']
         #within_class_acc = data['within_class_acc']
-        ks, pval, l1_score = data[['ks_score', 'ks_pval', 'l1_score']].squeeze()
+        ks, pval, l1_score, acc = data[['ks_score', 'ks_pval', 'l1_score', 'accuracy']].squeeze()
 
         pval = np.log10(pval)
 
@@ -2121,8 +2121,8 @@ class EvaluateCrossRetrieval:
         """
         # Assert if self.top_drug_ks exists.
 
-        for i, data in self.top_drug_ks.iterrows():
-            plot_ks(export, path_figs, model_name)
+        for i, drug in self.test_drugs:
+            plot_ks(drug, export, path_figs, model_name)
 
     def get_acc_df_cell2mol(self, k=5, return_ = True):
 
