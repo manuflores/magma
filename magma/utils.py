@@ -41,6 +41,7 @@ from .chemspace import get_drug_batch
 #from rdkit.Chem import rdFMCS
 from rdkit import Chem
 from rdkit.Chem import AllChem
+import matplotlib.pyplot as plt
 #from rdkit import DataStructs
 
 def train_supervised_gcn(
@@ -2074,7 +2075,7 @@ class EvaluateCrossRetrieval:
 
         return fig
 
-    def plot_ks(self, drug_name, export, path_figs, model_name):
+    def plot_ks(self, drug_name, export = None, path_figs= None, model_name= ''):
 
         data = self.drugbank[self.drugbank.drug_name == drug_name]
 
