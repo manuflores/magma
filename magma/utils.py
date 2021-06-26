@@ -1902,6 +1902,21 @@ class EvaluateCrossRetrieval:
 
         return percent_significant
 
+    def eval_m2c_mean_all(self, mode = 'mean', n_cores = 4, return_ = False):
+        "Evaluate above-mean accuracy for all drugs."
+
+        acc_arr = Parallel(n_jobs = n_cores)(
+            delayed(self.eval_m2c_mean)(drug, mode)
+            for drug in tqdm.tqdm(
+                    self.test_drugs, position = 0, leave = True
+                )
+        )
+
+        self.drugbank['acc_mean'] = acc_arr
+
+        if return_:
+            return acc_arr
+
     def run_ks_test(self, drug_name):
         "Returns statistics of running one vs all test for a given drug."
         own, others = self.get_cosine_drug_one_vs_all(drug_name)
