@@ -1986,7 +1986,7 @@ class EvaluateCrossRetrieval:
         """
 
         if n_top is None:
-            n_top = self.adata[self.adata.obs.drug_name == drug_name]
+            n_top = self.adata[self.adata.obs.drug_name == drug_name].n_obs
 
         ix_ = self.get_ix_drug(drug_name)
 
