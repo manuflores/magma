@@ -2021,7 +2021,7 @@ class EvaluateCrossRetrieval:
         #except:
        #     pass
 
-        df_viz['cosine_similarity'] = cosine_arr[ix_][ix_top_cells]
+        df_viz['cosine_similarity'] = self.cosine_arr[ix_][ix_top_cells]
         val_counts = df_viz[filter_by].value_counts()
         samples_in = val_counts[val_counts > n_cells_filter].index.values
         return df_viz[df_viz[filter_by].isin(samples_in)]
