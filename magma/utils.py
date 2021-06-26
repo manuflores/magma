@@ -1989,10 +1989,10 @@ class EvaluateCrossRetrieval:
 
         ix_ = self.get_ix_drug(drug_name)
 
-        name_of_drug = self.name_to_ix[ix_] #drugbank.iloc[ix_]['drug_name']
+        #name_of_drug = self.name_to_ix[ix_] #drugbank.iloc[ix_]['drug_name']
 
         #name_of_drug = drugbank_to_selleck[name_of_drug]
-        print('Returning predictions for %s'%name_of_drug)
+        #print('Returning predictions for %s'%name_of_drug)
 
         # Reverse order : get cells with lowest cosine sim
         if anti:
