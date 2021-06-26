@@ -2074,7 +2074,45 @@ class EvaluateCrossRetrieval:
 
         return fig
 
-    def plot_ks(self, export = True, path_figs= '../figs', model_name = ''):
+    def plot_ks(self, drug_name, export, path_figs, model_name):
+
+        data = self.drugbank[self.drugbank.drug_name == drug_name]
+
+        #drug_ = data['drug_name']
+        #print(drug_)
+        drug = drug_name.split()[0]
+        #print(drug)
+        #acc = data['accuracy']
+        #within_class_acc = data['within_class_acc']
+        ks, pval, l1_score = data[['ks_score', 'ks_pval', 'l1_score']].squeeze()
+
+        pval = np.log10(pval)
+
+        own, others = self.get_cosine_drug_one_vs_all(drug_name)
+
+        sorted_drug, ecdf_drug = ecdf(own)
+        sorted_other, ecdf_other = ecdf(others)
+
+        plt.figure(figsize = (3.5, 1.7))
+        plt.plot(sorted_drug, ecdf_drug, label = drug + ' cells', color = 'dodgerblue')
+        plt.plot(sorted_other, ecdf_other, label = 'cells from other samples', color = 'lightgrey')
+        plt.legend(
+            #title = 'KS: %.2f, pval: %.3f, l1: %.2f'%(ks, pval, l1_score),
+            bbox_to_anchor = (1.04, 0), loc = 'lower left'
+                  )
+
+        plt.title('One-vs-rest test KS: %.2f, pval: 1x10^ %.1f, l1: %.2f \n acc: %.1f'%(
+            ks, pval, l1_score, acc
+        ),)
+        plt.xlabel(r'$\mathrm{cos} \theta$ to %s mol.'%drug)
+        plt.ylabel('ECDF')
+
+        if export:
+            plt.savefig(
+                os.path.join(path_figs, drug + '_ks_test_%s.png'%model_name), bbox_inches = 'tight', dpi = 230
+            );
+
+    def plot_ks_all(self, export = True, path_figs= '../figs', model_name = ''):
         """
         Plots ECDFs of cosine similarity distributions of correct drug vs all others.
         Considers only top drugs. Assumes `run_ks()` has been called already.
@@ -2083,41 +2121,7 @@ class EvaluateCrossRetrieval:
         # Assert if self.top_drug_ks exists.
 
         for i, data in self.top_drug_ks.iterrows():
-            drug_ = data['drug_name']
-            print(drug_)
-            drug = drug_.split()[0]
-            print(drug)
-            acc = data['accuracy']
-            #within_class_acc = data['within_class_acc']
-            ks, pval, l1_score = results[i]
-
-            pval = np.log10(pval)
-
-            own, others = self.get_cosine_drug_one_vs_all(
-                    df_drugs_test, adata, drug_, cosine_arr
-                )
-
-            sorted_drug, ecdf_drug = ecdf(own)
-            sorted_other, ecdf_other = ecdf(others)
-
-            plt.figure(figsize = (3.5, 1.7))
-            plt.plot(sorted_drug, ecdf_drug, label = drug + ' cells', color = 'dodgerblue')
-            plt.plot(sorted_other, ecdf_other, label = 'cells from other samples', color = 'lightgrey')
-            plt.legend(
-                #title = 'KS: %.2f, pval: %.3f, l1: %.2f'%(ks, pval, l1_score),
-                bbox_to_anchor = (1.04, 0), loc = 'lower left'
-                      )
-
-            plt.title('One-vs-rest test KS: %.2f, pval: 1x10^ %.1f, l1: %.2f \n acc: %.1f'%(
-                ks, pval, l1_score, acc
-            ),)
-            plt.xlabel(r'$\mathrm{cos} \theta$ to %s mol.'%drug)
-            plt.ylabel('ECDF')
-
-            if export:
-                plt.savefig(
-                    os.path.join(path_figs, drug + '_ks_test_%s.png'%model_name), bbox_inches = 'tight', dpi = 230
-                );
+            plot_ks(export, path_figs, model_name)
 
     def get_acc_df_cell2mol(self, k=5, return_ = True):
 
