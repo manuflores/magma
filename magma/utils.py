@@ -1973,7 +1973,8 @@ class EvaluateCrossRetrieval:
         cols_viz = ['drug_name', 'target', 'drug_class'],
         return_acc_only = False,
         filter_by = 'drug_name',
-        n_cells_filter = 10
+        n_cells_filter = 10,
+        anti = False
         ):
         """
         Returns a dataframe of the cells closest to a molecule, grouped by sample.
