@@ -1987,7 +1987,7 @@ class EvaluateCrossRetrieval:
         if n_top is None:
             n_top = self.adata[self.adata.obs.drug_name == drug_name]
 
-        ix_ = self.get_ix_drug(drug_name, verbose = False)
+        ix_ = self.get_ix_drug(drug_name)
 
         name_of_drug = self.name_to_ix[ix_] #drugbank.iloc[ix_]['drug_name']
 
