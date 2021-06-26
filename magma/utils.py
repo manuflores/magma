@@ -2076,7 +2076,7 @@ class EvaluateCrossRetrieval:
         return fig
 
     def plot_ks(self, drug_name, export = None, path_figs= None, model_name= ''):
-
+        "To run after executing `run_ks_one_vs_all`"
         data = self.drugbank[self.drugbank.drug_name == drug_name]
 
         #drug_ = data['drug_name']
@@ -2087,7 +2087,10 @@ class EvaluateCrossRetrieval:
         #within_class_acc = data['within_class_acc']
         ks, pval, l1_score, acc = data[['ks_score', 'ks_pval', 'l1_score', 'accuracy']].squeeze()
 
-        pval = np.log10(pval)
+        try:
+            pval = np.log10(pval)
+        except:
+            pval = 0
 
         own, others = self.get_cosine_drug_one_vs_all(drug_name)
 
@@ -2102,7 +2105,7 @@ class EvaluateCrossRetrieval:
             bbox_to_anchor = (1.04, 0), loc = 'lower left'
                   )
 
-        plt.title('One-vs-rest test KS: %.2f, pval: 1x10^ %.1f, l1: %.2f \n acc: %.1f'%(
+        plt.title('One-vs-rest test KS: %.2f, KS pval: 1x10^ %.1f, l1: %.2f \n acc: %.1f'%(
             ks, pval, l1_score, acc
         ),)
         plt.xlabel(r'$\mathrm{cos} \theta$ to %s mol.'%drug)
