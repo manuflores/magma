@@ -2006,9 +2006,8 @@ class EvaluateCrossRetrieval:
 
         #try:
         sample_val_counts = df_viz.drug_name.value_counts()
-        if name_of_drug in sample_val_counts.index.values:
+        if drug_name in sample_val_counts.index.values:
             n_correct = sample_val_counts[name_of_drug]
-
             acc = n_correct / sample_val_counts.sum() * 100
             print('Accuracy: %.3f'%acc)
             if return_acc_only:
