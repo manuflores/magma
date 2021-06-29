@@ -670,6 +670,8 @@ def get_positive_negative_indices_batch(
 
     """
 
+    max_index = max(index_dict.keys())
+
     # Get cuda status
     if cuda is None:
         cuda = torch.cuda.is_available()
@@ -696,7 +698,7 @@ def get_positive_negative_indices_batch(
         # If any of the labels to flip is the last code
         # subtract as adding would result in error
 
-        label_flip_max_code = np.any(perm_labels[ix_to_flip] == np.max(codes))
+        label_flip_max_code = np.any(perm_labels[ix_to_flip] == max_index)
 
         label_flip_min_code = np.any(perm_labels[ix_to_flip] == 0)
 
