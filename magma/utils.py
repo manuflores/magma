@@ -893,7 +893,7 @@ class JointEmbeddingTrainer:
         if self.contrastive:
             cl_loss, train_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
 
-            if not metric:
+            if not self.metric:
                 cl_loss.backward()
                 self.optimizer.step()
 
