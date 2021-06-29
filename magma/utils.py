@@ -743,6 +743,8 @@ class JointEmbeddingTrainer:
         val_loader,
         index_dict_train:dict,
         index_dict_test:dict,
+        name_to_mol:dict,
+        ix_to_name:dict,
         lr:float = 1e-5,
         n_epochs:int = 20,
         metric_learning:bool = True,
