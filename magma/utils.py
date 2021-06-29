@@ -949,7 +949,14 @@ class JointEmbeddingTrainer:
             y_true = y_true.cuda()
 
         # Make batch of molecular graphs
-        molecule_batch = Batch.from_data_list(get_drug_batch(y_true, cuda = self.cuda))
+        molecule_batch = Batch.from_data_list(
+            get_drug_batch(
+                y_true,
+                self.name_to_mol,
+                self.ix_to_name,
+                cuda = self.cuda
+            )
+        )
 
         # Compute cell and molecule embeddings
         cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
