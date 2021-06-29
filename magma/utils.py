@@ -532,10 +532,10 @@ def supervised_trainer(
     return train_loss_vector, val_loss_vector, val_acc_vector
 
 
-def print_loss_in_loop(ep, ix, running_loss, print_every, message='loss'):
+def print_loss_in_loop(epoch, idx_batch, running_loss, print_every, message='loss'):
     print_msg = '[%d, %5d] ' + message + ' : %.3f'
     print(print_msg%\
-          (ep + 1, ix+1, running_loss / print_every))
+          (epodch + 1, idx_batch+1, running_loss / print_every))
 
 def supervised_model_predict(
     model:nn.Module,
@@ -648,6 +648,419 @@ def supervised_model_predict(
 
 
 
+def get_positive_negative_indices_batch(
+        y_true:torch.Tensor, index_dict:dict, cuda:bool = None
+    )->Tuple[np.array, np.array, np.array]:
+    """
+    Returns indices for positive and negative anchors,
+    to use in metric learning using hinge triplet loss,
+    given labels (y_true) for multiclass classification.
+
+    Params
+    ------
+    y_true(torch.Tensor)
+        Labels from sample codes.
+
+    cuda (bool, default = None)
+        Whether cuda is available for use.
+
+    Returns
+    -------
+    positive_anchor_ixs, negative_anchor_ixs, perm_labels
+
+    """
+
+    # Get cuda status
+    if cuda is None:
+        cuda = torch.cuda.is_available()
+
+    # Send labels to cpu
+    if cuda:
+        y_true = y_true.cpu()
+
+    # Make labels from torch.tensor -> numpy array
+    labels = y_true.numpy()
+
+    # Shuffle labels
+    perm_labels= np.random.permutation(labels)
+
+    # Check if any of shuffled labels didn't change
+    ix_eq = (labels == perm_labels)
+
+    # Get the indices where those unchanged labels reside
+    ix_to_flip = np.nonzero(ix_eq)[0]
+
+    # Enter loop if the permuted labels
+    # and the original labels coincide in an entry
+    if len(ix_to_flip) >= 1:
+        # If any of the labels to flip is the last code
+        # subtract as adding would result in error
+
+        label_flip_max_code = np.any(perm_labels[ix_to_flip] == np.max(codes))
+
+        label_flip_min_code = np.any(perm_labels[ix_to_flip] == 0)
+
+        # Unlikely case where the batch contains both
+        # the first and last index
+        # this will cause the hinge loss to be the margin
+        if label_flip_max_code and label_flip_min_code:
+            print('At least one label in the positive and negative is the same')
+            pass
+
+
+        elif label_flip_max_code and not label_flip_min_code:
+            perm_labels[ix_to_flip] = perm_labels[ix_to_flip] - 1
+
+        # Fall back to add an index
+        else :
+            perm_labels[ix_to_flip] = perm_labels[ix_to_flip] + 1
+
+
+    # Check that all labels are different
+    #assert np.all(labels != perm_labels)
+
+
+    # Get anchor indices for samples
+    positive_anchor_ixs = [np.random.choice(index_dict[l], size = 1)[0] for l in labels]
+
+    negative_anchor_ixs = [np.random.choice(index_dict[l], size = 1)[0] for l in perm_labels]
+
+    return positive_anchor_ixs, negative_anchor_ixs, perm_labels
+
+
+class JointEmbeddingTrainer:
+    """
+    Class for training the joint embedding model.
+    """
+    def __init__(
+        self,
+        model,
+        adata,
+        batch_size,
+        train_loader,
+        val_loader,
+        index_dict_train:dict,
+        index_dict_test:dict,
+        lr:float = 1e-5,
+        n_epochs:int = 20,
+        metric_learning:bool = True,
+        contrastive_learning:bool = True,
+        p_norm_metric:int = 2,
+        margin:float = 3.,
+        model_name:str = None,
+        model_dir:str = None,
+        ):
+        """
+        """
+        device = try_gpu()
+        self.device = device
+        self.model = model
+        self.batch_size = batch_size
+        self.adata = adata
+        self.train_loader, self.val_loader = train_loader, val_loader
+
+        self.cuda = torch.cuda.is_available()
+        if self.cuda:
+            self.model = self.model.to(device)
+
+        self.n_epochs = n_epochs
+        self.index_dict_train = index_dict_train
+        self.index_dict_test = index_dict_test
+
+        self.hinge_loss = nn.TripletMarginLoss(margin=margin, p=p_norm_metric)
+        self.criterion = nn.NLLLoss()
+        self.ordering_labels = torch.arange(batch_size).to(device)
+
+        self.contrastive = contrastive_learning #bool
+        self.metric = metric_learning #bool
+
+        self.n_train_batches = len(train_loader.dataset) // batch_size
+        self.n_test_batches = len(val_loader.dataset) // batch_size
+
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr = lr)
+
+        if self.contrastive == False and self.metric ==False:
+            raise AssertionError(
+                'Either one or both of contrastive learning and metric learning have to be active.'
+            )
+
+
+    def contrastive_learning_loop(self, mol_embedding, cell_embedding):
+        """Returns contrastive learning loss and cross-retrieval accuracy for a minibatch."""
+        # Make batch of molecular graphs
+        cell_embedding_norm = cell_embedding / cell_embedding.norm(dim= -1, keepdim = True)
+        mol_embedding_norm = mol_embedding / mol_embedding.norm(dim= -1, keepdim = True)
+
+        # Extract learnt scalar
+        logit_scale = self.model.logit_scale.exp()
+
+        # Get cosine similarities
+        # returns tensor of shape (mols, cells)
+        logits = logit_scale * mol_embedding_norm @ cell_embedding_norm.t()
+
+        # Get classification predictions across axes
+        y_pred_mols = F.log_softmax(logits, dim = 1)
+        y_pred_cells = F.log_softmax(logits, dim = 0)
+
+        # Calculate accuracies
+        mol_acc = accuracy(y_pred_mols.argmax(axis =1), self.ordering_labels)
+        cell_acc = accuracy(y_pred_cells.argmax(axis = 0), self.ordering_labels)
+
+        acc = (cell_acc + mol_acc)/ 2
+
+        # Compute contrastive learning loss
+        loss_mols = self.criterion(y_pred_mols, ordering_labels)
+        loss_cells = self.criterion(y_pred_cells, ordering_labels)
+
+        cl_loss = (loss_mols + loss_cells)/2
+
+        return cl_loss, acc
+
+    def metric_learning_loop(self, y_true, cell_embedding, mol_embedding):
+        """Returns average hinge loss from cells2mols and mols2cells for a minibatch."""
+        pos_cell_ixs, neg_cell_ixs, perm_y_labels = get_positive_negative_indices_batch(
+            y_true, self.index_dict_train, cuda = self.cuda
+        )
+
+        # Get positive and negative anchors for cells
+        positive_anchors_cells = torch.from_numpy(self.adata[pos_cell_ixs].X.A)
+        negative_anchors_cells = torch.from_numpy(self.adata[neg_cell_ixs].X.A)
+
+        if self.cuda:
+            positive_anchors_cells = positive_anchors_cells.cuda()
+            negative_anchors_cells = negative_anchors_cells.cuda()
+
+        # Get negative anchors for molecules
+        permuted_molecule_batch = Batch.from_data_list(
+            get_drug_batch(torch.from_numpy(perm_y_labels),cuda = self.cuda)
+        )
+
+        # Compute embeddings
+        positive_cell_embeddings = self.model.encode_cell(positive_anchors_cells)
+        negative_cell_embeddings = self.model.encode_cell(negative_anchors_cells)
+        permuted_molecule_embeddings = self.model.encode_molecule(permuted_molecule_batch)
+
+        # Compute metric learning loss
+        # (anchor, positive, negative)
+        hinge_cells_anchor = self.hinge_loss(
+            cell_embedding, mol_embedding, permuted_molecule_embeddings
+        )
+
+        hinge_mols_anchor = self.hinge_loss(
+            mol_embedding, positive_cell_embeddings, negative_cell_embeddings
+        )
+
+        metric_learning_loss = (hinge_cells_anchor + hinge_mols_anchor)/2
+
+        return metric_learning_loss
+
+
+    def train_step(self, input_tensor, y_true):
+        "A single training step for a minibatch."
+
+        self.model.zero_grad()
+
+        if self.cuda:
+            input_tensor = input_tensor.cuda()
+            y_true = y_true.cuda()
+
+        # Make batch of molecular graphs
+        molecule_batch = Batch.from_data_list(get_drug_batch(y_true, cuda = self.cuda))
+
+        # Compute cell and molecule embeddings
+        cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1))
+        mol_embedding = self.model.encode_molecule(molecule_batch)
+
+        if self.contrastive:
+            cl_loss, train_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
+
+            if not metric:
+                cl_loss.backward()
+                self.optimizer.step()
+
+                results_dict = {
+                    'train_loss': {
+                        'contrastive_loss': cl_loss.item(),
+                        'metric_learning_loss': None
+                    },
+                    'train_acc': train_acc
+                }
+
+                return results_dict
+
+        if self.metric:
+            met_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
+
+            if not self.contrastive:
+                met_loss.backward()
+                self.optimizer.step()
+
+                results_dict = {
+                    'train_loss': {'contrastive_loss': None,'metric_learning_loss': met_loss.item()},
+                    'train_acc': None
+                }
+
+                return results_dict
+
+
+        #if self.contrastive and self.metric:
+        # both contrastive and metric learning active
+        loss = cl_loss + metric_learning_loss
+
+        loss.backward()
+        self.optimizer.step()
+        results_dict = {
+            "train_loss": {
+                "contrastive_loss": cl_loss.item(),
+                "metric_learning_loss": metric_learning_loss.item(),
+            },
+            "train_acc": train_acc,
+        }
+
+        return results_dict
+
+    @torch.no_grad()
+    def val_step(self, input_tensor, y_true):
+        """
+        """
+        #self.model.eval()
+
+        if self.cuda:
+            input_tensor = input_tensor.cuda()
+            y_true = y_true.cuda()
+
+        # Make batch of molecular graphs
+        molecule_batch = Batch.from_data_list(get_drug_batch(y_true, cuda = self.cuda))
+
+        # Compute cell and molecule embeddings
+        cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1))
+        mol_embedding = self.model.encode_molecule(molecule_batch)
+
+        if self.contrastive:
+            cl_loss, test_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
+
+            if not metric:
+                results_dict = {
+                    'test_loss': {'contrastive_loss': cl_loss.item(),'metric_learning_loss': None},
+                    'test_acc': test_acc
+                }
+                return results_dict
+
+        if self.metric:
+            met_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
+            if not self.contrastive:
+                results_dict = {
+                    'test_loss': {'contrastive_loss': None,'metric_learning_loss': met_loss.item()},
+                    'test_acc': None
+                }
+                return results_dict
+
+        #if self.contrastive and self.metric:
+        # else: both contrastive and metric learning active
+        loss = cl_loss + metric_learning_loss
+
+        results_dict = {
+            "test_loss": {
+                "contrastive_loss": cl_loss.item(),
+                "metric_learning_loss": met_loss.item(),
+            },
+            "test_acc": test_acc,
+        }
+
+        return results_dict
+
+    def train(self)-> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Trains the joint embedding model for n_epochs.
+        Returns the train and validation loss and accuracy as dataframes.
+        """
+        df_train_loss, df_train_acc = pd.DataFrame(), pd.DataFrame()
+        df_test_loss, df_test_acc = pd.DataFrame(), pd.DataFrame()
+
+        for epoch in np.arange(self.n_epochs):
+
+            self.model.train()
+            for ix, (input_tensor, y_true) in tqdm.tqdm(enumerate(self.train_loader)):
+
+                # Train step
+                results_dict_train = self.train_step(input_tensor, y_true)
+                df_train_loss = df_train_loss.append(results_dict_train['train_loss'], ignore_index = True)
+                df_train_acc = df_train_acc.append(
+                    'train_acc': results_dict_train['train_acc'], ignore_index = True
+                )
+
+                mean_cl = df_train_loss.contrastive_loss.mean()
+                mean_ml = df_train_loss.metric_learning_loss.mean()
+                mean_acc = df_train_acc.train_acc.mean()
+                print('Epoch %d \n'%(epoch+1))
+                print('--------------------')
+                print('Train contrastive loss: %.3f '%(mean_cl if mean_cl is not np.nan else 0.0))
+                print('Train metric learning loss: %.3f '%(mean_ml if mean_ml is not np.nan else 0.0))
+                print('Train accuracy: %.3f'%(mean_acc*100 if mean_acc is not np.nan else 0.0))
+                print('\n')
+
+            self.model.eval()
+            for ix, (input_tensor, y_true) in tqdm.tqdm(enumerate(self.val_loader)):
+
+                # Val step
+                results_dict_test = self.val_step(input_tensor, y_true)
+                df_test_loss = df_test_loss.append(results_dict_test['test_loss'], ignore_index = True)
+                df_test_acc = df_train_acc.append(
+                    'test_acc': results_dict_test['test_acc'], ignore_index = True
+                )
+
+                mean_cl_ = df_test_loss.contrastive_loss.mean()
+                mean_ml_ = df_test_loss.metric_learning_loss.mean()
+                mean_acc_ = df_test_acc.test_acc.mean()
+
+                print('Val contrastive loss: %.3f '%(mean_cl_ if mean_cl_ is not np.nan else 0.0))
+                print('Val metric learning loss: %.3f '%(mean_ml_ if mean_ml_ is not np.nan else 0.0))
+                print('Validation accuracy: %.3f'%(mean_acc_*100 if mean_acc_ is not np.nan else 0.0))
+                print('\n')
+
+            # SAVE MODEL
+            if self.model_dir is not None:
+                if not os.path.exists(model_dir):
+                    os.mkdir(model_dir)
+
+                if self.model_name is not None:
+                    torch.save(
+                        self.model.state_dict(),
+                        os.path.join(self.model_dir, self.model_name + '_' + str(epoch) + '.pt')
+                    )
+                else:
+                    torch.save(
+                        self.model.state_dict(),
+                        os.path.join(self.model_dir, 'model' + '_' + str(epoch) + '.pt')
+                    )
+
+        # Summarize results
+        df_train_logs = pd.concat([df_train_loss, df_train_acc], axis = 1)
+        df_test_logs = pd.concat([df_test_loss, df_test_acc], axis = 1)
+
+        epoch_indicator_train = np.concatenate(
+            [np.repeat(epoch, self.n_train_batches) for epoch in np.arange(1, n_epochs+1)]
+        )
+
+        epoch_indicator_test = np.concatenate(
+            [np.repeat(epoch, self.n_test_batches) for epoch in np.arange(1, n_epochs +1)]
+        )
+
+        df_train_logs['epoch'] = epoch_indicator_train
+        df_test_logs['epoch'] = epoch_indicator_test
+
+        # Set logs as attributes
+        self.train_logs = df_train_logs
+        self.test_logs = df_test_logs
+
+        df_train_agg = df_train_logs.groupby('epoch').mean()
+        df_test_agg = df_test_logs.groupby('epoch').mean()
+
+        self.best_model_ix = df_test_agg.test_acc.argmax()
+
+        return df_train_agg, df_test_agg
+
+
 def train_vae(
 	model:nn.Module,
 	input_tensor,
@@ -655,17 +1068,12 @@ def train_vae(
     """
     Forward-backward pass of a VAE model.
     """
-
-    # Zero-out grads
     model.zero_grad()
-
-    # Make forward computation
     reconstructed, mu, log_var = model(input_tensor)
     loss = model.loss(reconstructed, input_tensor, mu, log_var)
 
     # Backprop error
     loss.backward()
-
     # Update weights
     optimizer.step()
 
@@ -675,7 +1083,8 @@ def train_vae(
 def validate_vae(
 	model:nn.Module,
 	input_tensor,
-	optimizer)->torch.tensor:
+	optimizer
+    )->torch.tensor:
 
     reconstructed, mu, log_var = model(input_tensor)
     loss = model.loss(reconstructed, input_tensor, mu, log_var)
@@ -1501,165 +1910,167 @@ def get_stats(distro_x, distro_y):
     return ks, pval_ks, l1_score
 
 
-def get_ix_drug(drugbank, drug_name, verbose = False)->np.ndarray:
-    """Returns index of molecule in drugbank."""
-    try:
-        ix_ = drugbank[drugbank['drug_name'] ==drug_name].index.values[0]
+# def get_ix_drug(drugbank, drug_name, verbose = False)->np.ndarray:
+#     """Returns index of molecule in drugbank."""
+#     try:
+#         ix_ = drugbank[drugbank['drug_name'] ==drug_name].index.values[0]
+#
+#     except :
+#         ix_ = drugbank[drugbank['drug_name'].str.contains(drug_name)].index.values[0]
+#     if verbose:
+#         print('Getting drugbank index for :%s'%drugbank.iloc[ix_]['drug_name'] )
+#     return ix_
+#
+# def get_ix_cells(adata, drug_name, verbose = False)->np.ndarray:
+#     """Returns index of cells perturbed by `drug_name` in adata"""
+#     try:
+#         ix_cells = adata[adata.obs['drug_name']==drug_name].obs.index.values
+#     except:
+#         ix_cells = adata[adata.obs['drug_name'].str.contains(drug_name)].obs.index.values
+#     if verbose :
+#         print('Getting adata cell indices for :%s'%adata[ix_cells[0]].obs['drug_name'].values[0] )
+#     return ix_cells
+#
+#
+# def get_cosine_distribution_drug(drugbank, adata, query_drug_name, perturb_drug_name, cosine_arr, verbose = False):
+#     """
+#     Returns the cosine similarity distribution for the cells perturbed with
+#     `perturb_drug_name` (indexed in adata), and a molecule `query_drug_name` (indexed in drugbank).
+#     If `query_drug_name` and `perturb_drug_name` are the same, it returns the
+#     cosine similarity of the given molecule against the cells perturbed by it.
+#
+#     Note: Expects cosine_arr to be of shape (n_mols, n_cells)
+#
+#     Params
+#     ------
+#     query_drug_name (str)
+#         Name of the drug to query against.
+#
+#     perturb_drug_name (str)
+#         Name of the drug that perturbed the cells to retrieve.
+#
+#     Returns
+#     -------
+#     cosine_similarity_distribution
+#
+#     Note:Expects cosine_arr to be shape (mols, cells)
+#     """
+#     ix_drug = get_ix_drug(drugbank, query_drug_name, verbose)
+#     ix_cells = get_ix_cells(adata, perturb_drug_name, verbose)
+#     cosine_similarity_distribution = cosine_arr[ix_drug, ix_cells]
+#
+#     return cosine_similarity_distribution
+#
+#
+# def get_cosine_drug_one_vs_all(
+#     drugbank,
+#     adata,
+#     drug_name,
+#     cosine_arr,
+#     verbose = False
+# ):
+#     """
+#     Returns the cosine similarity distribution of a molecule with cells perturbed by it,
+#     and the cos. sim. dist. of the molecule with cells coming from other samples.
+#
+#     Expects cosine_arr to be of shape (n_mols, n_cells)
+#     """
+#     n_mols, n_cells = cosine_arr.shape
+#     ix_drug, ix_cells = get_ix_drug(drugbank, drug_name), get_ix_cells(adata, drug_name)
+#
+#     # Get cosine similarity distribution of a drug with itself
+#     cosine_cells_drug = cosine_arr[ix_drug, ix_cells]
+#
+#     # Get the indices of all perturbed with other molecules but `drug_name`
+#     other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
+#     cosine_others = cosine_arr[ix_drug, other_cells_ix]
+#     return cosine_cells_drug, cosine_others
+#
+#
+# def get_cosine_distribution_df(
+#     drug_name,
+#     drugbank,
+#     adata,
+#     cosine_arr,
+#     drugbank_to_selleck,
+#     n_top = 10000,
+#     cols_viz = ['sample_class', 'target', 'drug_class', 'pn', 'drug_name'],
+#     filter_by = 'sample_class',
+#     n_cells_filter = 5,
+#     anti = False,
+#     return_acc_only = False
+# )->pd.DataFrame:
+#     """
+#     Returns an annotated dataframe of the cells with highest cosine similarity to
+#     a query molecule `drug_name`.
+#
+#     Notes: Assumes an adata and drugbank (dataframe) exist and that their indices
+#     have been reset.
+#
+#     Params
+#     ------
+#     drug_name (str)
+#     n_top (int, default= 10000,)
+#         Number of cells with highest similarity to retrieve.
+#
+#     cols_viz (list, default= ['sample_class', 'target', 'drug_class', 'pn'], )
+#         Which columns to use for visualization. Cols have to be in adata.
+#
+#     filter_by (str, default= 'sample_class')
+#         Column to filter noise cells.
+#
+#     n_cells_filter (int, default = 5,)
+#         Lower bound threshold above to which filter noise cells, i.e.
+#         if a sample has less than `n_cells_filter` in the top cells,
+#         that sample won't be in the final visualization.
+#
+#     anti (bool = False)
+#         Whether to reverse order, get cells with lowest cosine similarity.
+#
+#     Returns
+#     -------
+#     df_viz
+#     """
+#     ix_ = get_ix_drug(drugbank, drug_name, verbose = False)
+#
+#     name_of_drug = drugbank.iloc[ix_]['drug_name']
+#     name_of_drug = drugbank_to_selleck[name_of_drug]
+#     print('Returning predictions for %s'%name_of_drug)
+#
+#     # Reverse order : get cells with lowest cosine sim
+#     if anti:
+#         ix_top_cells = np.argsort(cosine_arr[ix_])[:n_top]
+#     else:
+#         ix_top_cells = np.argsort(cosine_arr[ix_])[::-1][:n_top]
+#
+#     # Make a dataframe containing the cosine similarities and cols_viz
+#     df_viz = adata[ix_top_cells].obs[cols_viz]
+#
+#     #try:
+#     sample_val_counts = df_viz.drug_name.value_counts()
+#     if name_of_drug in sample_val_counts.index.values:
+#         n_correct = sample_val_counts[name_of_drug]
+#
+#         acc = n_correct / sample_val_counts.sum() * 100
+#         print('Accuracy: %.3f'%acc)
+#         if return_acc_only:
+#             return acc
+#         else:
+#             pass
+#     else:
+#         print('Accuracy: 0')
+#         if return_acc_only:
+#             return 0
+#     #except:
+#    #     pass
+#
+#     df_viz['cosine_similarity'] = cosine_arr[ix_][ix_top_cells]
+#     val_counts = df_viz[filter_by].value_counts()
+#     samples_in = val_counts[val_counts > n_cells_filter].index.values
+#
+#     return df_viz[df_viz[filter_by].isin(samples_in)]
+#
 
-    except :
-        ix_ = drugbank[drugbank['drug_name'].str.contains(drug_name)].index.values[0]
-    if verbose:
-        print('Getting drugbank index for :%s'%drugbank.iloc[ix_]['drug_name'] )
-    return ix_
-
-def get_ix_cells(adata, drug_name, verbose = False)->np.ndarray:
-    """Returns index of cells perturbed by `drug_name` in adata"""
-    try:
-        ix_cells = adata[adata.obs['drug_name']==drug_name].obs.index.values
-    except:
-        ix_cells = adata[adata.obs['drug_name'].str.contains(drug_name)].obs.index.values
-    if verbose :
-        print('Getting adata cell indices for :%s'%adata[ix_cells[0]].obs['drug_name'].values[0] )
-    return ix_cells
-
-
-def get_cosine_distribution_drug(drugbank, adata, query_drug_name, perturb_drug_name, cosine_arr, verbose = False):
-    """
-    Returns the cosine similarity distribution for the cells perturbed with
-    `perturb_drug_name` (indexed in adata), and a molecule `query_drug_name` (indexed in drugbank).
-    If `query_drug_name` and `perturb_drug_name` are the same, it returns the
-    cosine similarity of the given molecule against the cells perturbed by it.
-
-    Note: Expects cosine_arr to be of shape (n_mols, n_cells)
-
-    Params
-    ------
-    query_drug_name (str)
-        Name of the drug to query against.
-
-    perturb_drug_name (str)
-        Name of the drug that perturbed the cells to retrieve.
-
-    Returns
-    -------
-    cosine_similarity_distribution
-
-    Note:Expects cosine_arr to be shape (mols, cells)
-    """
-    ix_drug = get_ix_drug(drugbank, query_drug_name, verbose)
-    ix_cells = get_ix_cells(adata, perturb_drug_name, verbose)
-    cosine_similarity_distribution = cosine_arr[ix_drug, ix_cells]
-
-    return cosine_similarity_distribution
-
-
-def get_cosine_drug_one_vs_all(
-    drugbank,
-    adata,
-    drug_name,
-    cosine_arr,
-    verbose = False
-):
-    """
-    Returns the cosine similarity distribution of a molecule with cells perturbed by it,
-    and the cos. sim. dist. of the molecule with cells coming from other samples.
-
-    Expects cosine_arr to be of shape (n_mols, n_cells)
-    """
-    n_mols, n_cells = cosine_arr.shape
-    ix_drug, ix_cells = get_ix_drug(drugbank, drug_name), get_ix_cells(adata, drug_name)
-
-    # Get cosine similarity distribution of a drug with itself
-    cosine_cells_drug = cosine_arr[ix_drug, ix_cells]
-
-    # Get the indices of all perturbed with other molecules but `drug_name`
-    other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
-    cosine_others = cosine_arr[ix_drug, other_cells_ix]
-    return cosine_cells_drug, cosine_others
-
-
-def get_cosine_distribution_df(
-    drug_name,
-    drugbank,
-    adata,
-    cosine_arr,
-    drugbank_to_selleck,
-    n_top = 10000,
-    cols_viz = ['sample_class', 'target', 'drug_class', 'pn', 'drug_name'],
-    filter_by = 'sample_class',
-    n_cells_filter = 5,
-    anti = False,
-    return_acc_only = False
-)->pd.DataFrame:
-    """
-    Returns an annotated dataframe of the cells with highest cosine similarity to
-    a query molecule `drug_name`.
-
-    Notes: Assumes an adata and drugbank (dataframe) exist and that their indices
-    have been reset.
-
-    Params
-    ------
-    drug_name (str)
-    n_top (int, default= 10000,)
-        Number of cells with highest similarity to retrieve.
-
-    cols_viz (list, default= ['sample_class', 'target', 'drug_class', 'pn'], )
-        Which columns to use for visualization. Cols have to be in adata.
-
-    filter_by (str, default= 'sample_class')
-        Column to filter noise cells.
-
-    n_cells_filter (int, default = 5,)
-        Lower bound threshold above to which filter noise cells, i.e.
-        if a sample has less than `n_cells_filter` in the top cells,
-        that sample won't be in the final visualization.
-
-    anti (bool = False)
-        Whether to reverse order, get cells with lowest cosine similarity.
-
-    Returns
-    -------
-    df_viz
-    """
-    ix_ = get_ix_drug(drugbank, drug_name, verbose = False)
-
-    name_of_drug = drugbank.iloc[ix_]['drug_name']
-    name_of_drug = drugbank_to_selleck[name_of_drug]
-    print('Returning predictions for %s'%name_of_drug)
-
-    # Reverse order : get cells with lowest cosine sim
-    if anti:
-        ix_top_cells = np.argsort(cosine_arr[ix_])[:n_top]
-    else:
-        ix_top_cells = np.argsort(cosine_arr[ix_])[::-1][:n_top]
-
-    # Make a dataframe containing the cosine similarities and cols_viz
-    df_viz = adata[ix_top_cells].obs[cols_viz]
-
-    #try:
-    sample_val_counts = df_viz.drug_name.value_counts()
-    if name_of_drug in sample_val_counts.index.values:
-        n_correct = sample_val_counts[name_of_drug]
-
-        acc = n_correct / sample_val_counts.sum() * 100
-        print('Accuracy: %.3f'%acc)
-        if return_acc_only:
-            return acc
-        else:
-            pass
-    else:
-        print('Accuracy: 0')
-        if return_acc_only:
-            return 0
-    #except:
-   #     pass
-
-    df_viz['cosine_similarity'] = cosine_arr[ix_][ix_top_cells]
-    val_counts = df_viz[filter_by].value_counts()
-    samples_in = val_counts[val_counts > n_cells_filter].index.values
-
-    return df_viz[df_viz[filter_by].isin(samples_in)]
 
 
 
