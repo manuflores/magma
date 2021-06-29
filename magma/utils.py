@@ -141,7 +141,7 @@ def supervised_trainer_gcn(
                 data.edge_attr = data.edge_attr.cuda()
                 data.edge_index = data.edge_index.cuda()
                 data.x = data.x.cuda()
-                data.y = data.y.cuda()
+                data.y = torch.tensor(data.y, device = device)
 
 
             train_loss, train_acc = train_supervised_gcn(
