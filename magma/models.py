@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.distributions as td
+import torch.linalg as LA
 
 import torchvision
 import torchvision.transforms as transforms
@@ -911,23 +912,28 @@ class JointEmbedding(nn.Module):
 
         # Get cosine similarities
         logit_scale = self.logit_scale.exp()
-        logits = logit_scale* mol_embedding@cell_embedding.t()
+        logits = logit_scale * mol_embedding@cell_embedding.t()
 
         return logits
 
 
-def cov_mat(X:torch.Tensor, Y = None)->torch.Tensor:
+def cov_mat(X:torch.Tensor, Y:torch.Tensor = None)->torch.Tensor:
     """
     Returns covariance or cross-covariance matrix. Assumes mean centered data.
-    Note: Always returns a cross-cov matrix with larger rows than columns.
+    Note: Always returns a cross-covariance matrix with larger rows than columns.
 
     Params
     ------
+	X (torch.Tensor)
+		Dataset with mean centered columns.
+	Y (torch.Tensor)
+		Second dataset to calculate cross-covariance matrix.
 
 
     Returns
     -------
-
+	cov(torch.Tensor)
+		Covariance or cross-covariance matrix respectively.
     """
     N, k = X.shape
 
@@ -950,20 +956,36 @@ def cov_mat(X:torch.Tensor, Y = None)->torch.Tensor:
 
     return cov
 
-def cca_torch(Xa, Xb, n_components = None):
+def cca_torch(
+	Xa:torch.Tensor, Xb:torch.Tensor, n_components:int = None
+	)->Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
-    Returns weight matrices Wa, Wb corresponding to canonical weights.
+    Returns canonical correlations (rhos) and weight matrices (Wa, Wb)
+	corresponding to canonical weights using CCA.
 
-    Note: Function assumes that Xa has the same or a smaller dimensionality than Xb,
-          and that data is mean centered.
+	Note: Function assumes that Xa has the same or a smaller dimensionality than Xb,
+	and that data is mean centered.
 
-          Also assumes torch.linalg is imported as `LA`.
+	Also assumes torch.linalg is imported as `LA`.
 
 	Params
 	------
+	Xa, Xb (torch.Tensor)
+		Paired datasets. It is assumed that they are column-centered, i.e. that
+		the mean of each column is equal to one.
+
+	n_components
 
 	Returns
 	-------
+	rhos (torch.Tensor)
+		Canonical correlations between Za^i and Zb^i.
+
+	Wa (torch.Tensor)
+		Canonical weights for dataset Xa. Multiply to get embeddings Za = Xa@Wa
+
+	Wb (torch.Tensor)
+		Canonical weights for dataset Xb.
     """
 
     device = Xa.device
@@ -971,16 +993,15 @@ def cca_torch(Xa, Xb, n_components = None):
     N, dim_a = Xa.shape
     n, dim_b = Xb.shape
 
-    assert N==n # Check the same number of entries / datapoints
+    assert N==n, "Xa and Xb should have the same number of datapoints (rows)."
 
-    assert dim_a<=dim_b # Check Xa has smaller dimensionality
-
+    assert dim_a<=dim_b, "Xa should have a smaller number of columns that Xb."
 
     r = 1e-4 # add regularization for invertibility
 
     # Calculate covariance matrices
     Caa = cov_mat(Xa) + r*torch.eye(dim_a, device = device)
-    Cbb = cov_mat(Xb)+ r*torch.eye(dim_b, device = device)
+    Cbb = cov_mat(Xb) + r*torch.eye(dim_b, device = device)
     Cba = cov_mat(Xb, Xa)
     Cab = Cba.T
 
@@ -990,7 +1011,7 @@ def cca_torch(Xa, Xb, n_components = None):
     eigvals, Wb = torch.eig(cross_corr, eigenvectors = True)
 
     # Canonical correlations
-    rhos = torch.sqrt(eigvals)
+    rhos = torch.sqrt(eigvals)[:, 0]
 
     # Canonical weights for matrix Xa
     Wa = torch.zeros((dim_a,dim_a), device = device)
