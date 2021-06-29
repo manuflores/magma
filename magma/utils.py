@@ -908,10 +908,10 @@ class JointEmbeddingTrainer:
                 return results_dict
 
         if self.metric:
-            met_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
+            metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
 
             if not self.contrastive:
-                met_loss.backward()
+                metric_learning_loss.backward()
                 self.optimizer.step()
 
                 results_dict = {
