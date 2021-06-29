@@ -770,6 +770,8 @@ class JointEmbeddingTrainer:
         self.n_epochs = n_epochs
         self.index_dict_train = index_dict_train
         self.index_dict_test = index_dict_test
+        self.name_to_mol = name_to_mol
+        self.ix_to_name = ix_to_name
 
         self.hinge_loss = nn.TripletMarginLoss(margin=margin, p=p_norm_metric)
         self.criterion = nn.NLLLoss()
@@ -836,7 +838,12 @@ class JointEmbeddingTrainer:
 
         # Get negative anchors for molecules
         permuted_molecule_batch = Batch.from_data_list(
-            get_drug_batch(torch.from_numpy(perm_y_labels),cuda = self.cuda)
+            get_drug_batch(
+                torch.from_numpy(perm_y_labels),
+                self.name_to_mol,
+                self.ix_to_name,
+                cuda = self.cuda
+            )
         )
 
         # Compute embeddings
@@ -869,7 +876,14 @@ class JointEmbeddingTrainer:
             y_true = y_true.cuda()
 
         # Make batch of molecular graphs
-        molecule_batch = Batch.from_data_list(get_drug_batch(y_true, cuda = self.cuda))
+        molecule_batch = Batch.from_data_list(
+            get_drug_batch(
+                y_true,
+                self.name_to_mol,
+                self.ix_to_name,
+                cuda = self.cuda
+            )
+        )
 
         # Compute cell and molecule embeddings
         cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1))
