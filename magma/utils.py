@@ -115,7 +115,7 @@ def supervised_trainer_gcn(
     model_dir:str = None,
     model_name:str = None,
     early_stopping_tol:float = 0.3,
-):
+)-> Tuple[list, np.ndarray, np.ndarray]:
     """
     Wrapper function to train a GNN.
     Currently designed for classification problems.
@@ -126,8 +126,8 @@ def supervised_trainer_gcn(
         Number of forward-backward passes through all the training data.
 
     train_loader, val_loader
-        Torch dataloaders of training and validation set. The validation set
-        is used for estimating model convergence.
+        torch_geometric.data.Dataloaders of training and validation set.
+        The validation set is used for estimating model convergence.
 
     model (nn.Module)
         Supervised neural net model.
@@ -141,12 +141,16 @@ def supervised_trainer_gcn(
     multiclass (bool, default = False)
         Whether the model is a softmax classification model.
 
+    n_classes (int, default = 1)
+        Dimensionality of output dimension.
+
     model_dir (str, default = None)
-        Path to store trained models. If set to None it will not store the model weights.
+        Path to store trained models.
+        If set to None it will not store the model's weights.
 
     model_name (str, default = None)
         Filename of the model to be stored. If set to None and `model_dir` is specified,
-        the model will be stored as `model.pt`
+        the model will be stored as `model.pt`.
 
     early_stopping_tol (float, default = 0.1)
         Tolerance to stop the training.
