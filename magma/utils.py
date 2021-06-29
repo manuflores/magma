@@ -265,7 +265,7 @@ def supervised_trainer_gcn(
             if model_name is not None:
                 torch.save(
                     model.state_dict(),
-                    os.path.join(model_name + '_' + str(epoch) + '.pt')
+                    os.path.join(model_dir, model_name + '_' + str(epoch) + '.pt')
                 )
             else:
                 torch.save(
