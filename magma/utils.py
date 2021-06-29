@@ -103,7 +103,7 @@ def val_supervised_gcn(
 
 
 def supervised_trainer_gcn(
-    n_epochs,
+    n_epochs:int,
     train_loader,
     val_loader,
     model,
@@ -111,8 +111,54 @@ def supervised_trainer_gcn(
     optimizer,
     multiclass= False,
     n_classes = 1,
-    logs_per_epoch = 5
+    logs_per_epoch = 5,
+    model_dir:str = None,
+    model_name:str = None,
+    early_stopping_tol:float = 0.3,
 ):
+    """
+    Wrapper function to train a GNN.
+    Currently designed for classification problems.
+
+    Params
+    ------
+    n_epochs (int)
+        Number of forward-backward passes through all the training data.
+
+    train_loader, val_loader
+        Torch dataloaders of training and validation set. The validation set
+        is used for estimating model convergence.
+
+    model (nn.Module)
+        Supervised neural net model.
+
+    criterion (torch.nn.modules.loss object)
+        Loss function.
+
+    optimizer (torch.optim object)
+        Optimizer, e.g. Adam or RMSProp.
+
+    multiclass (bool, default = False)
+        Whether the model is a softmax classification model.
+
+    model_dir (str, default = None)
+        Path to store trained models. If set to None it will not store the model weights.
+
+    model_name (str, default = None)
+        Filename of the model to be stored. If set to None and `model_dir` is specified,
+        the model will be stored as `model.pt`
+
+    early_stopping_tol (float, default = 0.1)
+        Tolerance to stop the training.
+        It is used as the fractional increase in the validation loss
+        in order to stop the training. I.e. in pseudocode:
+
+        Stop if val_loss[i] > (1+early_stopping_tol)*val_loss[i-1]
+
+        The higher the value the more tolerant to run for the number of epochs.
+        If the value is small the traning loop can be too sensitive to small
+        increases in the validation loss.
+    """
 
     batch_size = train_loader.batch_size
     print_every = np.floor(train_loader.dataset.__len__() / batch_size / logs_per_epoch) # minibatches
@@ -175,7 +221,6 @@ def supervised_trainer_gcn(
             val_accuracy = []
 
             for i, data in enumerate(tqdm.tqdm(val_loader)):
-                #input_tensor = data.view(batch_size, -1).float()
 
                 if cuda:
                     data.edge_attr = data.edge_attr.cuda()
@@ -185,7 +230,7 @@ def supervised_trainer_gcn(
                     data.ptr  = data.ptr.cuda()
                     data.batch = data.batch.cuda()
 
-                
+
                 val_loss, val_acc = val_supervised_gcn(
                     model, data, criterion, multiclass, n_classes
                     )
@@ -201,6 +246,28 @@ def supervised_trainer_gcn(
 
             print('Val. loss %.3f'% mean_val_loss)
             print('Val. acc %.3f'% mean_accuracy)
+
+        # EARLY STOPPING LOOP
+        if epoch > 0:
+            if val_loss_vector[epoch] > (1+early_stopping_tol)*val_loss_vector[epoch-1]:
+                print('Finished by early stopping at epoch %d'%(epoch))
+                return train_loss_vector, val_loss_vector, val_acc_vector
+
+        # SAVE MODEL
+        if model_dir is not None:
+            if not os.path.exists(model_dir):
+                os.mkdir(model_dir)
+
+            if model_name is not None:
+                torch.save(
+                    model.state_dict(),
+                    os.path.join(model_name + '_' + str(epoch) + '.pt')
+                )
+            else:
+                torch.save(
+                    model.state_dict(),
+                    os.path.join(model_dir, 'model' + '_' + str(epoch) + '.pt')
+                )
 
     print('Finished training')
 
