@@ -117,7 +117,7 @@ def supervised_trainer_gcn(
     early_stopping_tol:float = 0.3,
 )-> Tuple[list, np.ndarray, np.ndarray]:
     """
-    Wrapper function to train a GNN.
+    Wrapper function to train a GNN, returns train and val loss, and val accuracy.
     Currently designed for classification problems.
 
     Params
@@ -288,7 +288,7 @@ def train_supervised(
     n_out = 1,
     ):
     """
-    Helper function to make forward and backward pass with minibatch
+    Wrapper function to make forward and backward pass with minibatch
     using a supervised model (classification or regression).
 
     Params
@@ -365,7 +365,7 @@ def supervised_trainer(
     """
     Wrapper function to train a supervised model for n_epochs.
     Currently designed for classification and regression.
-    Notes: Not yet suited for segmentation problems.
+    Returns train loss, validation loss and accuracy.
 
     Params
     ------
