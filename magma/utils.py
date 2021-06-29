@@ -178,10 +178,14 @@ def supervised_trainer_gcn(
                 #input_tensor = data.view(batch_size, -1).float()
 
                 if cuda:
-                    data=data.cuda(device=device)
-                    #input_tensor = input_tensor.cuda(device = device)
-                    #y_true = y_true.cuda(device = device)
+                    data.edge_attr = data.edge_attr.cuda()
+                    data.edge_index = data.edge_index.cuda()
+                    data.x = data.x.cuda()
+                    data.y = torch.tensor(data.y, device = device)
+                    data.ptr  = data.ptr.cuda()
+                    data.batch = data.batch.cuda()
 
+                
                 val_loss, val_acc = val_supervised_gcn(
                     model, data, criterion, multiclass, n_classes
                     )
