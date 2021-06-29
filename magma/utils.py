@@ -816,8 +816,8 @@ class JointEmbeddingTrainer:
         acc = (cell_acc + mol_acc)/ 2
 
         # Compute contrastive learning loss
-        loss_mols = self.criterion(y_pred_mols, ordering_labels)
-        loss_cells = self.criterion(y_pred_cells, ordering_labels)
+        loss_mols = self.criterion(y_pred_mols, self.ordering_labels)
+        loss_cells = self.criterion(y_pred_cells, self.ordering_labels)
 
         cl_loss = (loss_mols + loss_cells)/2
 
