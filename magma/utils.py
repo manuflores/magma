@@ -986,7 +986,7 @@ class JointEmbeddingTrainer:
                 results_dict_train = self.train_step(input_tensor, y_true)
                 df_train_loss = df_train_loss.append(results_dict_train['train_loss'], ignore_index = True)
                 df_train_acc = df_train_acc.append(
-                    'train_acc': results_dict_train['train_acc'], ignore_index = True
+                    {'train_acc': results_dict_train['train_acc']}, ignore_index = True
                 )
 
                 mean_cl = df_train_loss.contrastive_loss.mean()
@@ -1006,7 +1006,7 @@ class JointEmbeddingTrainer:
                 results_dict_test = self.val_step(input_tensor, y_true)
                 df_test_loss = df_test_loss.append(results_dict_test['test_loss'], ignore_index = True)
                 df_test_acc = df_train_acc.append(
-                    'test_acc': results_dict_test['test_acc'], ignore_index = True
+                    {'test_acc': results_dict_test['test_acc']}, ignore_index = True
                 )
 
                 mean_cl_ = df_test_loss.contrastive_loss.mean()
