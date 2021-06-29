@@ -299,14 +299,36 @@ class GraphConvNetwork(GNNBase):
 
         self.conv_encoder = nn.ModuleList(conv_layers)
 
-        linear_layers = [
-            BnLinear(dims_lin[i - 1], dims_lin[i])
-            for i in range(1, len(dims_lin) - 1)
-        ]
+		# Multiple FC layer mode
+        if isinstance(dims_lin, list):
+            linear_layers = [
+                BnLinear(
+					dims_lin[i - 1], dims_lin[i],
+					#{'bias': False}
+					)
+                for i in range(1, len(dims_lin) - 1)
+            ]
 
-        self.output_dim = dims_lin[-1]
-        self.linear_layers = nn.ModuleList(linear_layers)
-        self.final_layer = BnLinear(dims_lin[-2], self.output_dim)
+            self.output_dim = dims_lin[-1]
+            self.linear_layers = nn.ModuleList(linear_layers)
+            self.final_layer = BnLinear(
+				dims_lin[-2], self.output_dim,
+				#{'bias': False}
+				)
+            self.multiple_linear = True
+
+        # Single output FC layer mode
+        elif isinstance(dims_lin, int):
+            self.output_dim = dims_lin
+            self.linear_layers= None
+            self.final_layer = BnLinear(
+                dims_conv[-1], self.output_dim, #{'bias': False}
+            )
+
+            self.multiple_linear = False
+        else:
+            raise TypeError('`dims_lin` was expecting a list or int.')
+
 
         self.pooling = pooling
         self.model_type = model_type
@@ -399,13 +421,20 @@ class GraphAttentionNetwork(GNNBase):
         # Multiple FC layer mode
         if isinstance(dims_lin, list):
             linear_layers = [
-                BnLinear(dims_lin[i - 1], dims_lin[i], {'bias': False})
+                BnLinear(
+					dims_lin[i - 1], dims_lin[i],# {'bias': False}
+				)
                 for i in range(1, len(dims_lin) - 1)
             ]
 
             self.output_dim = dims_lin[-1]
             self.linear_layers = nn.ModuleList(linear_layers)
-            self.final_layer = BnLinear(dims_lin[-2], self.output_dim, {'bias': False})
+            self.final_layer = BnLinear(
+				dims_lin[-2],
+				self.output_dim,
+				#{'bias': False}
+			)
+
             self.multiple_linear = True
 
         # Single output FC layer mode
@@ -413,7 +442,7 @@ class GraphAttentionNetwork(GNNBase):
             self.output_dim = dims_lin
             self.linear_layers= None
             self.final_layer = BnLinear(
-                dims_conv[-1], self.output_dim, {'bias': False}
+                dims_conv[-1], self.output_dim, #{'bias': False}
             )
 
             self.multiple_linear = False
