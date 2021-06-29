@@ -3,14 +3,16 @@ from itertools import combinations
 import seaborn as sns
 from scipy.spatial import distance as spdist
 import tqdm
-from torch_geometric.data import Data
+
+from torch_geometric.data import Data, Batch
 import torch
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+
 from rdkit.Chem.Draw import rdMolDraw2D
 from rdkit.Chem import rdFMCS
-from torch_geometric.data import Batch
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import DataStructs

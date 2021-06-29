@@ -14,7 +14,6 @@ from typing import Optional, Sequence, Tuple, Union
 import scipy.io as sio
 import scipy.stats as st
 from scipy import sparse
-from scipy import stats
 
 import numpy as np
 import pandas as pd
@@ -24,7 +23,6 @@ import toolz as tz
 import tqdm
 import os
 import collections
-
 from sklearn import metrics
 from sklearn.utils import sparsefuncs
 from joblib import Parallel, delayed
@@ -51,29 +49,35 @@ def train_supervised_gcn(
     optimizer,
     multiclass = False,
     n_out = 1
-)->torch.tensor:
-    """Single fwd-bwd pass on GraphConvNet model."""
+)->Tuple[float, float]:
+    """
+    Single fwd-bwd pass on GraphConvNet model.
+    Returns loss and accuracy.
+    """
 
     y_true = torch.tensor(data.y, dtype = torch.long)
-        #np.array(data.y, dtype=np.int16), dtype =torch.Long
-        #) #, device = data.device)
-    #y_true = data.y
 
     optimizer.zero_grad()
     y_pred = model(data)
 
     if multiclass:
         loss = loss_fn(y_pred, y_true)
+        y_hat = y_pred.argmax(dim = 1)
+        acc = accuracy(y_hat, y_true)
+
     else:
         loss = loss_fn(
             y_pred.float(),
             y_true.reshape(-1, n_out).float()
         )
 
+        acc = accuracy(y_pred, y_true)
+
+
     loss.backward()
     optimizer.step()
 
-    return loss
+    return loss, acc
 
 def val_supervised_gcn(
     model, data, loss_fn, multiclass = False, n_out = 1
@@ -86,13 +90,16 @@ def val_supervised_gcn(
 
     if multiclass:
         loss = loss_fn(y_pred, y_true)
+        y_hat = y_pred.argmax(dim = 1)
+        acc = accuracy(y_hat, y_true)
     else:
         loss = loss = loss_fn(
             y_pred.float(),
             y_true.reshape(-1, n_out).float()
         )
+        acc = accuracy(y_pred, y_true)
 
-    return loss.mean()
+    return loss.mean(), acc
 
 
 def supervised_trainer_gcn(
@@ -104,14 +111,15 @@ def supervised_trainer_gcn(
     optimizer,
     multiclass= False,
     n_classes = 1,
-    train_prints_per_epoch = 5
+    logs_per_epoch = 5
 ):
 
     batch_size = train_loader.batch_size
-    print_every = np.floor(train_loader.dataset.__len__() / batch_size / train_prints_per_epoch) # minibatches
+    print_every = np.floor(train_loader.dataset.__len__() / batch_size / logs_per_epoch) # minibatches
 
     train_loss_vector = [] # to store training loss
     val_loss_vector = np.empty(shape = n_epochs)
+    val_acc_vector = np.empty(shape = n_epochs)
 
     cuda = torch.cuda.is_available()
 
@@ -130,14 +138,15 @@ def supervised_trainer_gcn(
             #input_tensor = data.view(batch_size, -1).float()
 
             if cuda:
-                data= data.cuda(device=device)
-                #input_tensor = input_tensor.cuda(device = device)
-                #y_true = y_true.cuda(device = device)
+                data.edge_attr = data.edge_attr.cuda()
+                data.edge_index = data.edge_index.cuda()
+                data.x = data.x.cuda()
+                data.y = data.y.cuda()
 
-            train_loss = train_supervised_gcn(
+
+            train_loss, train_acc = train_supervised_gcn(
                 model,
-                data,
-                #y_true,
+                data, # graph and label in data object
                 criterion,
                 optimizer,
                 multiclass=multiclass,
@@ -161,6 +170,7 @@ def supervised_trainer_gcn(
         # VALIDATION LOOP
         with torch.no_grad():
             validation_loss = []
+            val_accuracy = []
 
             for i, data in enumerate(tqdm.tqdm(val_loader)):
                 #input_tensor = data.view(batch_size, -1).float()
@@ -170,20 +180,25 @@ def supervised_trainer_gcn(
                     #input_tensor = input_tensor.cuda(device = device)
                     #y_true = y_true.cuda(device = device)
 
-                val_loss = val_supervised_gcn(
+                val_loss, val_acc = val_supervised_gcn(
                     model, data, criterion, multiclass, n_classes
                     )
 
                 validation_loss.append(val_loss)
+                val_accuracy.append(val_acc)
 
             mean_val_loss = torch.tensor(validation_loss).mean()
+            mean_accuracy = torch.tensor(val_accuracy).mean()
+
             val_loss_vector[epoch] = mean_val_loss
+            val_acc_vector[epoch] = mean_accuracy
 
             print('Val. loss %.3f'% mean_val_loss)
+            print('Val. acc %.3f'% mean_accuracy)
 
     print('Finished training')
 
-    return train_loss_vector, val_loss_vector
+    return train_loss_vector, val_loss_vector, val_acc_vector
 
 
 def train_supervised(
@@ -217,15 +232,21 @@ def train_supervised(
 
     if multiclass:
         loss = loss_fn(y_pred, y_true)
+        y_hat = y_pred.argmax(dim = 1)
+        acc = accuracy(y_hat, y_true)
 
     else: # Backprop error
         loss = loss_fn(y_pred, y_true.view(-1, n_out).float())
+        try:
+            acc = accuracy(y_pred, y_true.view(-1, n_out).float())
+        except:
+            acc = None
 
     loss.backward()
     # Update weights
     optimizer.step()
 
-    return loss
+    return loss, acc
 
 def validation_supervised(model, input_tensor, y_true, loss_fn, multiclass =False, n_classes= 1):
     """
@@ -236,11 +257,17 @@ def validation_supervised(model, input_tensor, y_true, loss_fn, multiclass =Fals
     y_pred = model(input_tensor.float())
     if multiclass:
         loss = loss_fn(y_pred, y_true)
-        #acc = accuracy(y_true, y_pred)
+
+        y_hat = y_pred.argmax(dim = 1)
+        acc = accuracy(y_hat, y_true)
     else:
         loss = loss_fn(y_pred, y_true.view(-1, n_classes).float())
+        try:
+            acc = accuracy(y_pred, y_true.view(-1, n_out).float())
+        except:
+            acc = None
 
-    return loss.mean().item()
+    return loss.mean().item(), acc
 
 def supervised_trainer(
     n_epochs:int,
@@ -251,7 +278,7 @@ def supervised_trainer(
     optimizer,
     multiclass:bool = False,
     n_classes:int = 1,
-    train_prints_per_epoch:int = 5,
+    logs_per_epoch:int = 5,
     train_fn:callable = train_supervised,
     model_dir:str = None,
     model_name:str = None,
@@ -319,10 +346,11 @@ def supervised_trainer(
     """
 
     batch_size = train_loader.batch_size
-    print_every = np.floor(train_loader.dataset.__len__() / batch_size / train_prints_per_epoch) # minibatches
+    print_every = np.floor(train_loader.dataset.__len__() / batch_size / logs_per_epoch) # minibatches
 
     train_loss_vector = [] # to store training loss
     val_loss_vector = np.empty(shape = n_epochs)
+    val_acc_vector = np.empty(shape = n_epochs)
 
     cuda = torch.cuda.is_available()
 
@@ -344,7 +372,7 @@ def supervised_trainer(
                 input_tensor = input_tensor.cuda(device = device)
                 y_true = y_true.cuda(device = device)
 
-            train_loss = train_fn(
+            train_loss, train_acc = train_fn(
                 model,
                 input_tensor,
                 y_true,
@@ -372,6 +400,7 @@ def supervised_trainer(
         # VALIDATION LOOP
         with torch.no_grad():
             validation_loss = []
+            validation_accuracy = []
 
             for i, (data, y_true) in enumerate(tqdm.tqdm(val_loader)):
 
@@ -381,16 +410,21 @@ def supervised_trainer(
                     input_tensor = input_tensor.cuda(device = device)
                     y_true = y_true.cuda(device = device)
 
-                val_loss = validation_supervised(
+                val_loss, val_acc = validation_supervised(
                     model, input_tensor, y_true, criterion, multiclass, n_classes
                     )
 
                 validation_loss.append(val_loss)
+                validation_accuracy.append(val_acc)
 
             mean_val_loss = torch.tensor(validation_loss).mean().item()
+            mean_val_acc = torch.tensor(validation_accuracy).mean().item()
+
             val_loss_vector[epoch] = mean_val_loss
+            val_acc_vector[epoch] = mean_val_acc
 
             print('Val. loss %.3f'% mean_val_loss)
+            print('Val. accuracy %.3f'% mean_val_acc)
 
 
         # EARLY STOPPING LOOP
@@ -412,7 +446,7 @@ def supervised_trainer(
 
     print('Finished training')
 
-    return train_loss_vector, val_loss_vector
+    return train_loss_vector, val_loss_vector, val_acc_vector
 
 
 def print_loss_in_loop(ep, ix, running_loss, print_every, message='loss'):
@@ -571,7 +605,7 @@ def vae_trainer(
     model:nn.Module,
     optimizer,
     conditional_gen = False,
-    train_prints_per_epoch = 5):
+    logs_per_epoch = 5):
 
     """
     Wrapper function to train a VAE model for n_epochs.
@@ -599,7 +633,7 @@ def vae_trainer(
 
     batch_size = train_loader.batch_size
     print_every = np.floor(
-        train_loader.dataset.__len__() / batch_size / train_prints_per_epoch
+        train_loader.dataset.__len__() / batch_size / logs_per_epoch
         )
 
     train_loss_vector = []
@@ -1145,10 +1179,6 @@ def cv_filter(
 	adata.var = new_adata_var
 
 	slope, intercept, r, pval, stderr = st.linregress(log_mean, log_cv)
-
-	# Check that slope is approx -1/2
-	print(f'The slope of the model is {np.round(slope,3)}.')
-
 	poisson_prediction_cv = slope*log_mean + intercept
 
 	# Binary array of highly variable genes
@@ -1380,7 +1410,7 @@ def get_stats(distro_x, distro_y):
     ks, pval_ks, l1_score
     """
     # For a given value of the data, ECDF of sample 1 takes values less than sample 2
-    ks, pval_ks = stats.ks_2samp(distro_x, distro_y, alternative="less")
+    ks, pval_ks = st.ks_2samp(distro_x, distro_y, alternative="less")
 
     # Positive if mean(distro_x) > mean(distro_y)
     l1_score = l1_norm(distro_y, distro_x)
@@ -1772,10 +1802,9 @@ class EvaluateCrossRetrieval:
         mol_embedding_norm  = mol_embedding / np.linalg.norm(mol_embedding, axis = 1).reshape(-1,1)
         cell_embedding_norm = cell_embedding / np.linalg.norm(cell_embedding, axis = 1).reshape(-1,1)
 
-        # Compute cosine similarity
-        cosine_arr = mol_embedding_norm@cell_embedding_norm.T
-        # shape (molecules, cells)
-        print('Shape of cosine similarity array: {0}'.format(cosine_arr.shape))
+        # Compute cosine similarity, shape (molecules, cells)
+        cosine_arr = np.matmul(mol_embedding_norm, cell_embedding_norm.T)
+        #print('Shape of cosine similarity array: {0}'.format(cosine_arr.shape))
         self.cosine_arr = cosine_arr
 
         if return_:
