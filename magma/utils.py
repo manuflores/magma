@@ -249,7 +249,7 @@ def supervised_trainer_gcn(
             val_acc_vector[epoch] = mean_accuracy
 
             print('Val. loss %.3f'% mean_val_loss)
-            print('Val. acc %.3f'% mean_accuracy)
+            print('Val. acc %.3f'% (mean_accuracy*100))
 
         # EARLY STOPPING LOOP
         if epoch > 0:
@@ -501,7 +501,7 @@ def supervised_trainer(
             val_acc_vector[epoch] = mean_val_acc
 
             print('Val. loss %.3f'% mean_val_loss)
-            print('Val. accuracy %.3f'% mean_val_acc)
+            print('Val. accuracy %.3f'% (mean_val_acc*100))
 
 
         # EARLY STOPPING LOOP
@@ -516,9 +516,15 @@ def supervised_trainer(
                 os.mkdir(model_dir)
 
             if model_name is not None:
-                torch.save(model.state_dict(), model_dir + model_name + '_' + str(epoch) + '.pt')
+                torch.save(
+                    model.state_dict(),
+                    os.path.join(model_dir, model_name + '_' + str(epoch) + '.pt')
+                )
             else:
-                torch.save(model.state_dict(), model_dir + 'model' + '_' + str(epoch) + '.pt')
+                torch.save(
+                    model.state_dict(),
+                    os.path.join(model_dir, 'model' + '_' + str(epoch) + '.pt')
+                )
 
 
     print('Finished training')
