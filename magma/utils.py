@@ -886,7 +886,7 @@ class JointEmbeddingTrainer:
         )
 
         # Compute cell and molecule embeddings
-        cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1))
+        cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
         mol_embedding = self.model.encode_molecule(molecule_batch)
 
         if self.contrastive:
@@ -951,7 +951,7 @@ class JointEmbeddingTrainer:
         molecule_batch = Batch.from_data_list(get_drug_batch(y_true, cuda = self.cuda))
 
         # Compute cell and molecule embeddings
-        cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1))
+        cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
         mol_embedding = self.model.encode_molecule(molecule_batch)
 
         if self.contrastive:
