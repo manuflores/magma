@@ -791,6 +791,8 @@ class JointEmbeddingTrainer:
                 'Either one or both of contrastive learning and metric learning have to be active.'
             )
 
+        self.model_name, self.model_dir = model_name, model_dir
+
 
     def contrastive_learning_loop(self, mol_embedding, cell_embedding):
         """Returns contrastive learning loss and cross-retrieval accuracy for a minibatch."""
