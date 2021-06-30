@@ -1048,8 +1048,8 @@ class JointEmbeddingTrainer:
 
             # SAVE MODEL
             if self.model_dir is not None:
-                if not os.path.exists(model_dir):
-                    os.mkdir(model_dir)
+                if not os.path.exists(self.model_dir):
+                    os.mkdir(self.model_dir)
 
                 if self.model_name is not None:
                     torch.save(
