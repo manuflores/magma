@@ -973,7 +973,7 @@ class JointEmbeddingTrainer:
                 return results_dict
 
         if self.metric:
-            met_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
+            metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
             if not self.contrastive:
                 results_dict = {
                     'test_loss': {'contrastive_loss': None,'metric_learning_loss': met_loss.item()},
@@ -988,7 +988,7 @@ class JointEmbeddingTrainer:
         results_dict = {
             "test_loss": {
                 "contrastive_loss": cl_loss.item(),
-                "metric_learning_loss": met_loss.item(),
+                "metric_learning_loss": metric_learning_loss.item(),
             },
             "test_acc": test_acc,
         }
