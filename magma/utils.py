@@ -2704,7 +2704,7 @@ class EvaluateCrossRetrieval:
         sorted_drug, ecdf_drug = ecdf(own)
         sorted_other, ecdf_other = ecdf(others)
 
-        plt.figure(figsize = (3.5, 1.7))
+        #plt.figure(figsize = (3.5, 1.7))
         plt.plot(sorted_drug, ecdf_drug, label = drug + ' cells', color = 'dodgerblue')
         plt.plot(sorted_other, ecdf_other, label = 'cells from other samples', color = 'lightgrey')
         plt.legend(
