@@ -2211,11 +2211,11 @@ class EvaluateCrossRetrieval:
             self.drugbank.rename(columns = {'Target': 'target'}, inplace = True)
             self.name_to_target = dict(df_drugs_test[['drug_name', 'target']].values)
             self.name_to_class = dict(df_drugs_test[['drug_name','drug_class']].values)
-            self.adata['drug_class'] = self.adata.drug_name.apply(
+            self.adata.obs['drug_class'] = self.adata.obs.drug_name.apply(
                 lambda x: self.name_to_class[x] if x in self.name_to_class.keys() else 'undefined'
             )
 
-            self.adata['target'] = self.adata.drug_name.apply(
+            self.adata.obs['target'] = self.adata.obs.drug_name.apply(
                 lambda x: self.name_to_target[x] if x in self.name_to_target.keys() else 'undefined'
             )
 
@@ -2692,7 +2692,7 @@ class EvaluateCrossRetrieval:
         #print(drug)
         #acc = data['accuracy']
         #within_class_acc = data['within_class_acc']
-        ks, pval, l1_score, acc = data[['ks_score', 'ks_pval', 'l1_score', 'accuracy']].squeeze()
+        ks, pval, l1_score, acc = data[['ks_score', 'ks_pval', 'l1_score', 'm2c_accuracy']].squeeze()
 
         try:
             pval = np.log10(pval)
