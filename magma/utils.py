@@ -2211,6 +2211,8 @@ class EvaluateCrossRetrieval:
             self.name_to_target = dict(df_drugs_test[['drug_name', 'target']].values)
             self.name_to_class = dict(df_drugs_test[['drug_name','drug_class']].values)
 
+            self.drugbank['name_class'] = self.drugbank['drug_name'] + ['_'] + self.drugbank.['drug_class']
+
         self.test_drugs_ixs = [self.name_to_ix[drug] for drug in self.test_drugs]
 
         # For each cell, get its perturbation's index
