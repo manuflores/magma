@@ -2393,8 +2393,8 @@ class EvaluateCrossRetrieval:
         # Get the indices of all perturbed with other molecules but `drug_name`'s
         other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
         cosine_others = self.cosine_arr[ix_drug, other_cells_ix]
-        return cosine_cells_drug, cosine_others
 
+        return cosine_cells_drug, cosine_others
 
 
     def eval_mol2cell_accuracy(self, mode= 'cosine', return_ = False):
@@ -2480,7 +2480,7 @@ class EvaluateCrossRetrieval:
                 )
         )
 
-        self.drugbank['acc_mean'] = acc_arr
+        self.drugbank['acc_above_mean'] = acc_arr
 
         if return_:
             return acc_arr
