@@ -2320,6 +2320,10 @@ class EvaluateCrossRetrieval:
             mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,n_dims +1)]].values
 
         cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]].values
+
+        self.mol_embedding = mol_embedding
+        self.cell_embedding = cell_embedding
+
         # Normalize to make row vectors
         mol_embedding_norm  = mol_embedding / np.linalg.norm(mol_embedding, axis = 1).reshape(-1,1)
         cell_embedding_norm = cell_embedding / np.linalg.norm(cell_embedding, axis = 1).reshape(-1,1)
@@ -2332,10 +2336,23 @@ class EvaluateCrossRetrieval:
         if return_:
             return cosine_arr
 
-    def compute_dist_arr(self):
-        #self.D
-        #self.top_ixs_l2
-        pass
+    def compute_dist_matrix(self, run_with_torch = False, precomputed = True, return_=False):
+        """
+        Computes the euclidean distances between cells and molecules,
+        and saves it as an attribute.
+        It assumes compute_cosine_arr() has already been run.
+        """
+        if run_with_torch:
+            self.D = generalized_distance_matrix_torch(
+                torch.from_numpy(self.mol_embedding),
+                torch.from_numpy(self.cell_embedding)
+            )
+        else:
+            self.D = generalized_distance_matrix(
+                self.mol_embedding, self.cell_embedding
+            )
+        if return_:
+            return self.D
 
     def get_top_ixs(self, data_type = 'mols', mode = 'cosine', top_k = 15):
         "Returns the top indices from a cosine similarity or L2 distance matrix."

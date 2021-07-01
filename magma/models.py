@@ -423,7 +423,7 @@ class GraphAttentionNetwork(GNNBase):
         if isinstance(dims_lin, list):
             linear_layers = [
                 BnLinear(
-					dims_lin[i - 1], dims_lin[i],# {'bias': False}
+					dims_lin[i - 1], dims_lin[i], {'bias': False}
 				)
                 for i in range(1, len(dims_lin) - 1)
             ]
@@ -433,7 +433,7 @@ class GraphAttentionNetwork(GNNBase):
             self.final_layer = BnLinear(
 				dims_lin[-2],
 				self.output_dim,
-				#{'bias': False}
+				{'bias': False}
 			)
 
             self.multiple_linear = True
@@ -443,7 +443,8 @@ class GraphAttentionNetwork(GNNBase):
             self.output_dim = dims_lin
             self.linear_layers= None
             self.final_layer = BnLinear(
-                dims_conv[-1], self.output_dim, #{'bias': False}
+                dims_conv[-1], self.output_dim,
+				{'bias': False}
             )
 
             self.multiple_linear = False
@@ -1027,3 +1028,106 @@ def cca_torch(
         Wb = Wb[:, :n_components]
 
     return rhos, Wa, Wb
+
+
+
+
+
+class VGG_(nn.Module):
+
+    def __init__(self, dims_linear, activation_func = torch.tanh, model_type ='multiclass'):
+        """
+        linear_dims(list)
+            List has to start in dimensionality 512.
+        """
+        super(VGG_, self).__init__()
+
+        self.activation_func = activation_func # for linear layers
+
+        # Load pretrained VGG19
+        vgg= vgg16(pretrained = True)
+
+        # Copy first couple of filter avgd
+        filter_1  = vgg.features[0].weight.detach()
+        mean_filter_1 = vgg.features[0].weight.detach().mean(dim = 1).view(64, 1, 3, 3)
+        filter_expanded = torch.cat([filter_1, mean_filter_1, mean_filter_1], dim = 1)
+
+        # Extract bias
+        bias_1 = vgg.features[0].bias
+
+        # Set inplace the new conv filter with 5 channels
+        vgg.features[0] = nn.Conv2d(
+            5, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
+        )
+
+        vgg.features[0].weight = nn.Parameter(filter_expanded)
+        vgg.features[0].bias = nn.Parameter(bias_1)
+
+        # Freeze all weights up to the last three conv layers
+        for param in vgg.features[:24].parameters():
+            param.requires_grad = False
+
+        # Add modified vgg as attribute
+        #self.vgg = vgg
+
+        # The convolutional encoder
+        # is all layers up to the last max pool
+        self.conv_encoder = vgg.features[:37]
+
+        # Avg across spatial dimension
+        self.avg_pool = nn.AdaptiveAvgPool2d(output_size = (1,1))
+
+        # MLP encoder: trainable
+        self.linear_layers =[
+            BnLinear(dims_linear[i-1], dims_linear[i]) for i in range(1, len(linear_dims[:-1]))
+        ]
+
+        # Classifier layer : trainable
+        self.final_layer = BnLinear(dims_linear[-2], dims_linear[-1])
+        self.model = model_type
+
+    def project(self, x):
+        x = self.conv_encoder(x)
+        X = self.avg_pool(x)
+        x = x.view(-1,512)
+
+        for mlp in self.linear_layers:
+            x = mlp(x)
+            x = self.activation_func(x)
+
+        return x
+
+
+    def forward(self, x):
+        x = self.project(x)
+
+		# Pass through final linear layer
+        if self.model == 'regression':
+            if self.dropout:
+                x = F.dropout(x, p = 0.3)
+            x = self.final_layer(x)
+            return x
+
+        elif self.model == 'multiclass':
+            if self.dropout:
+                x = F.dropout(x, p = 0.3)
+            x = self.final_layer(x)
+            x = F.log_softmax(x, dim = 1)
+
+            return x
+
+        elif self.model == 'binary':
+            if self.dropout:
+                x = F.dropout(x, p = 0.3)
+            x = self.final_layer(x)
+            x = F.sigmoid(x)
+
+            return x
+
+        elif self.model == 'multilabel':
+            if self.dropout:
+                x = F.dropout(x)
+            x = self.final_layer(x)
+            x = F.sigmoid(x)
+
+            return x
