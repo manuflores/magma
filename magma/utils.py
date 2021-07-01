@@ -18,6 +18,7 @@ from scipy import sparse
 import numpy as np
 import pandas as pd
 import anndata as ad
+import seaborn as sns
 
 import toolz as tz
 import tqdm
@@ -2664,7 +2665,7 @@ class EvaluateCrossRetrieval:
 
         except:
             sns.heatmap(
-                self.drugbank.sort_values(by = 'accuracy', ascending = False).head(15).set_index('drug_name')['accuracy'].to_frame(),
+                self.drugbank.sort_values(by = 'm2c_accuracy', ascending = False).head(15).set_index('drug_name')['accuracy'].to_frame(),
                 cmap = 'mako_r', annot = True, label = 'accuracy (%)', vmin = 0, #vmax = 35
                        )
 
@@ -2684,7 +2685,7 @@ class EvaluateCrossRetrieval:
         )
 
         sns.stripplot(
-            data=self.drugbank[self.drugbank[plot] > 1].sort_values(
+            data=self.drugbank[self.drugbank[plot] > filt_by].sort_values(
                 by=[plot, cat], ascending=False
             ),
             x=plot,
