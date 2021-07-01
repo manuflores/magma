@@ -350,6 +350,7 @@ class GraphAttentionNetwork(GNNBase):
         model_type = 'multiclass',
 		act_func_conv = torch.tanh,
 		act_func_linear = torch.tanh,
+		bias_linear = False,
         attention_layer_kwargs = {}
     ):
         """
@@ -423,7 +424,8 @@ class GraphAttentionNetwork(GNNBase):
         if isinstance(dims_lin, list):
             linear_layers = [
                 BnLinear(
-					dims_lin[i - 1], dims_lin[i], {'bias': False}
+					dims_lin[i - 1], dims_lin[i],
+					{'bias': bias_linear}
 				)
                 for i in range(1, len(dims_lin) - 1)
             ]
@@ -433,7 +435,7 @@ class GraphAttentionNetwork(GNNBase):
             self.final_layer = BnLinear(
 				dims_lin[-2],
 				self.output_dim,
-				{'bias': False}
+				{'bias': bias_linear}
 			)
 
             self.multiple_linear = True
@@ -444,7 +446,7 @@ class GraphAttentionNetwork(GNNBase):
             self.linear_layers= None
             self.final_layer = BnLinear(
                 dims_conv[-1], self.output_dim,
-				{'bias': False}
+				{'bias': bias_linear}
             )
 
             self.multiple_linear = False

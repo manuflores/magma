@@ -1006,8 +1006,8 @@ class JointEmbeddingTrainer:
         df_test_loss, df_test_acc = pd.DataFrame(), pd.DataFrame()
 
         for epoch in np.arange(self.n_epochs):
-
             self.model.train()
+            # Loop through minibatches from training dataloader
             for ix, (input_tensor, y_true) in tqdm.tqdm(enumerate(self.train_loader)):
 
                 # Train step
@@ -1027,6 +1027,7 @@ class JointEmbeddingTrainer:
             print('Train accuracy: %.3f'%(mean_acc*100 if mean_acc is not np.nan else 0.0))
             print('\n')
 
+            # Loop through mb from validation dataloader
             self.model.eval()
             for ix, (input_tensor, y_true) in tqdm.tqdm(enumerate(self.val_loader)):
 
@@ -2234,12 +2235,13 @@ class EvaluateCrossRetrieval:
         n_cores = 2
         ):
         """
-        Runs all evaluation
+        Runs all evaluation metrics.
         """
 
         self.compute_cosine_arr(
             return_ = False, project_mols = project_mols, n_dims = 64
         )
+        #self.compute_dist_matrix()
 
         # Saves mol2cell accuracies in self.m2c_acc and in self.drugbank
         self.eval_mol2cell_accuracy(mode= mode, return_ = False)
@@ -2252,14 +2254,46 @@ class EvaluateCrossRetrieval:
         self.run_ks_one_vs_all(n_cores)
 
         # Run mol2cell above mean
-        #self.
+        self.eval_m2c_above_mean_all()
+
+        # Aggregate metrics
+        self.eval_summary()
 
         # Plot results !
         if plot:
             pass
 
-    def eval_summary(self):
-        pass
+    def eval_summary(self, ks_pval_thresh = 1e-8, above_mean_thresh = 95, return_= False):
+        "Assumes eval_pipeline() has been executed to calculate all metrics."
+
+        # Average top5 cell2mol accuracy
+        cell2mol_top5_avg = np.mean(self.c2m_acc_df.top5_accuracy)
+
+        # Average mol2cell accuracy
+        mol2cell_avg = np.mean(self.m2c_acc)
+
+        # Percentage of molecules with corresponding cells having significantly
+        # learn relationships, by using KS test of own cells vs all other cells
+        percentage_ks_low = len(
+            self.drugbank[self.drugbank.ks_pval < ks_pval_thresh]
+        ) / len(self.test_drugs) * 100
+
+        # Percentage of cells above the mean of mol2cell distribution
+        percentage_above_mean = len(
+            self.drugbank[self.drugbank.acc_above_mean > above_mean_thresh]
+        ) / len(self.test_drugs) * 100
+
+        metrics_dict = {
+            'cell2mol_top5_acc': cell2mol_top5_avg,
+            'mol2cell_acc': mol2cell_avg,
+            'perc_ks_significant': percentage_ks_low,
+            'perc_above_mean': percentage_above_mean
+        }
+
+        self.summary_stats = metrics_dict
+
+        if return_:
+            return metrics_dict
 
     def get_ix_drug(self, drug_name):
         return self.name_to_ix.get(drug_name, 'None')
@@ -2417,7 +2451,7 @@ class EvaluateCrossRetrieval:
             accs.append(acc)
 
         self.m2c_acc = accs
-        self.drugbank['accuracy'] = accs
+        self.drugbank['m2c_accuracy'] = accs
 
         if return_:
             return accs
@@ -2470,7 +2504,7 @@ class EvaluateCrossRetrieval:
 
         return percent_significant
 
-    def eval_m2c_mean_all(self, mode = 'mean', n_cores = 4, return_ = False):
+    def eval_m2c_above_mean_all(self, mode = 'mean', n_cores = 4, return_ = False):
         "Evaluate above-mean accuracy for all drugs."
 
         acc_arr = Parallel(n_jobs = n_cores)(
@@ -2753,6 +2787,6 @@ class EvaluateCrossRetrieval:
         except:
             pass
 
-        self.c2m_acc = accuracy_df
+        self.c2m_acc_df = accuracy_df
         if return_:
             return accuracy_df
