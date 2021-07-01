@@ -2211,6 +2211,13 @@ class EvaluateCrossRetrieval:
             self.drugbank.rename(columns = {'Target': 'target'}, inplace = True)
             self.name_to_target = dict(df_drugs_test[['drug_name', 'target']].values)
             self.name_to_class = dict(df_drugs_test[['drug_name','drug_class']].values)
+            self.adata['drug_class'] = self.adata.drug_name.apply(
+                lambda x: self.name_to_class[x] if x in self.name_to_class.keys() else 'undefined'
+            )
+
+            self.adata['target'] = self.adata.drug_name.apply(
+                lambda x: self.name_to_target[x] if x in self.name_to_target.keys() else 'undefined'
+            )
 
             self.drugbank['name_class'] = self.drugbank['drug_name'] + ['_'] + self.drugbank['drug_class']
 
@@ -2648,26 +2655,6 @@ class EvaluateCrossRetrieval:
         samples_in = val_counts[val_counts > n_cells_filter].index.values
         return df_viz[df_viz[filter_by].isin(samples_in)]
 
-
-    def plot_top_mol2cell(self):
-        "Assumes `eval_mol2cell_accuracy` has been executed."
-        try:
-            self.drugbank['name_class'] = self.drugbank['name']+ ['_'] + self.drugbank['drug_class']
-        except:
-            pass
-
-        fig = plt.figure(figsize =(1, 4))
-        try:
-            sns.heatmap(
-                self.drugbank.sort_values(by = 'accuracy', ascending = False).head(15).set_index('name_class')['accuracy'].to_frame(),
-                cmap = 'mako_r', annot = True, label = 'accuracy (%)', vmin = 0, #vmax = 35
-                       )
-
-        except:
-            sns.heatmap(
-                self.drugbank.sort_values(by = 'm2c_accuracy', ascending = False).head(15).set_index('drug_name')['accuracy'].to_frame(),
-                cmap = 'mako_r', annot = True, label = 'accuracy (%)', vmin = 0, #vmax = 35
-                       )
 
     def plot_boxplot_m2c(self, plot = 'accuracy', cat = 'drug_class', filt_by = 0):
         #plot = "accuracy"
