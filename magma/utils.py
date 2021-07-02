@@ -2383,8 +2383,8 @@ class EvaluateCrossRetrieval:
         mol_embedding_norm  = mol_embedding / np.linalg.norm(mol_embedding, axis = 1).reshape(-1,1)
         cell_embedding_norm = cell_embedding / np.linalg.norm(cell_embedding, axis = 1).reshape(-1,1)
 
-        print('mol shape: ', mol_embedding_norm.shape)
-        print('cell emb shape: ', cell_embedding_norm.shape)
+        print('mol shape: ', mol_embedding.shape)
+        print('cell emb shape: ', cell_embedding.shape)
 
         # Compute cosine similarity, shape (molecules, cells)
         #cosine_arr = np.matmul(mol_embedding_norm, cell_embedding_norm.T)
