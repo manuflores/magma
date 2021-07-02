@@ -2120,7 +2120,7 @@ class EvaluateCrossRetrieval:
         model,
         model_type = 'nn',
         dataset = 'thomsonlab',
-        drugs_col_name = 'sample_id'
+        drugs_col_name = 'name'
     ):
         """
         Params
