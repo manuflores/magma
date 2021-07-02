@@ -2237,6 +2237,8 @@ class EvaluateCrossRetrieval:
             [self.name_to_ix[drug] for drug in self.adata.obs['drug_name'].values]
         )
 
+        self.adata = self.adata.copy()
+
         # Assign some colormaps for plotting
         self.colormaps = {
             'drug_class': 'Blues_r',
@@ -2381,8 +2383,12 @@ class EvaluateCrossRetrieval:
         mol_embedding_norm  = mol_embedding / np.linalg.norm(mol_embedding, axis = 1).reshape(-1,1)
         cell_embedding_norm = cell_embedding / np.linalg.norm(cell_embedding, axis = 1).reshape(-1,1)
 
+        print('mol shape: ', mol_embedding_norm.shape)
+        print('cell emb shape: ', cell_embedding_norm.shape)
+
         # Compute cosine similarity, shape (molecules, cells)
-        cosine_arr = np.matmul(mol_embedding_norm, cell_embedding_norm.T)
+        #cosine_arr = np.matmul(mol_embedding_norm, cell_embedding_norm.T)
+        cosine_arr = mol_embedding_norm@cell_embedding_norm.T
         #print('Shape of cosine similarity array: {0}'.format(cosine_arr.shape))
         self.cosine_arr = cosine_arr
 
