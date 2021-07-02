@@ -2237,7 +2237,7 @@ class EvaluateCrossRetrieval:
             [self.name_to_ix[drug] for drug in self.adata.obs['drug_name'].values]
         )
 
-        self.adata = self.adata.copy()
+        #self.adata = self.adata.copy()
 
         # Assign some colormaps for plotting
         self.colormaps = {
@@ -2259,6 +2259,7 @@ class EvaluateCrossRetrieval:
         Runs all evaluation metrics.
         """
 
+        print('Computing mol2cell & cell2mol accuracy from %s matrix.'%mode)
         self.compute_cosine_arr(
             return_ = False, project_mols = project_mols, n_dims = 64
         )
@@ -2270,16 +2271,18 @@ class EvaluateCrossRetrieval:
         # Saves results in self.df_c2m for top5 accuracy
         self.eval_cell2mol_accuracy()
         self.get_acc_df_cell2mol()
-
+        print('Finished computing accuracies.')
         # Run KS tests
+        print('Running KS test...')
         self.run_ks_one_vs_all(n_cores)
-
+        print('Finished KS test.')
         # Run mol2cell above mean
         self.eval_m2c_above_mean_all()
 
         # Aggregate metrics
         self.eval_summary()
 
+        print('Finished pipeline.')
         # Plot results !
         if plot:
             pass
@@ -2383,12 +2386,9 @@ class EvaluateCrossRetrieval:
         mol_embedding_norm  = mol_embedding / np.linalg.norm(mol_embedding, axis = 1).reshape(-1,1)
         cell_embedding_norm = cell_embedding / np.linalg.norm(cell_embedding, axis = 1).reshape(-1,1)
 
-        print('mol shape: ', mol_embedding.shape)
-        print('cell emb shape: ', cell_embedding.shape)
-
         # Compute cosine similarity, shape (molecules, cells)
-        #cosine_arr = np.matmul(mol_embedding_norm, cell_embedding_norm.T)
-        cosine_arr = mol_embedding_norm@cell_embedding_norm.T
+        cosine_arr = np.matmul(mol_embedding_norm, cell_embedding_norm.T)
+
         #print('Shape of cosine similarity array: {0}'.format(cosine_arr.shape))
         self.cosine_arr = cosine_arr
 
