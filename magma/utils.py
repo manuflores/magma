@@ -1069,11 +1069,11 @@ class JointEmbeddingTrainer:
         df_test_logs = pd.concat([df_test_loss, df_test_acc], axis = 1)
 
         epoch_indicator_train = np.concatenate(
-            [np.repeat(epoch, self.n_train_batches) for epoch in np.arange(1, n_epochs+1)]
+            [np.repeat(epoch, self.n_train_batches) for epoch in np.arange(1, self.n_epochs+1)]
         )
 
         epoch_indicator_test = np.concatenate(
-            [np.repeat(epoch, self.n_test_batches) for epoch in np.arange(1, n_epochs +1)]
+            [np.repeat(epoch, self.n_test_batches) for epoch in np.arange(1, self.n_epochs +1)]
         )
 
         df_train_logs['epoch'] = epoch_indicator_train
@@ -2111,7 +2111,7 @@ class EvaluateCrossRetrieval:
 
     It is designed for evaluation in a test set, comprised of a tuple
     (test molecules, test cells). Nevertheless, one can pass the full datasets
-    and still leverage the functionalities.
+    (i.e. train+val+test) and still leverage the functionalities.
     """
     def __init__(
         self,
@@ -2145,6 +2145,15 @@ class EvaluateCrossRetrieval:
 
         drugs_col_name(str, default = 'sample_id')
             If there's a specific column name for the name of drugs in the df_drugs dataset.
+
+        Notes
+        -----
+        Assumptions:
+        - the `df_drugs` and the `adata` have the same annotation for the drug
+        names.
+
+        - the cell data has the same columns (input features) for which both the
+        cell encoder and the joint embedding model were trained on.
 
         """
 
