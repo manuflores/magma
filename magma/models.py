@@ -1,11 +1,5 @@
-### models
-# - [>]  layers
-# - [>]  gcn
-# - [>]  gat
-# - [>]  supervised_model
-# - [>]  vae
-# - [>]  JointEmbedding
 from typing import Optional, Sequence, Tuple, Union
+from .utils import try_gpu
 
 import tqdm
 import torch
@@ -21,7 +15,9 @@ from torch.autograd import Variable
 from torch.utils.data import Dataset, IterableDataset, DataLoader
 
 import torch_geometric
-from torch_geometric.nn import GCNConv, GATConv
+#from torch_geometric.nn import SAGPooling
+
+from torch_geometric.nn import GCNConv, GATConv, SAGPooling
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool
 
 import copy
@@ -108,45 +104,24 @@ class GNNBase(nn.Module):
 
         x, edge_index = data.x, data.edge_index
 
-        for conv_layer in self.conv_encoder:
-            x = conv_layer(x, edge_index)
-            x = self.activation_func_conv(x)
-
-        if self.pooling == 'mean':
-            x = global_mean_pool(x, data.batch)
-        elif self.pooling == 'add':
-            x = global_add_pool(x, data.batch)
-        elif self.pooling == 'max':
-            x = global_max_pool(x, data.batch)
-        else:
-            raise ValueError('Pooling method not specified or implented.')
-
-
-        # no non-linear activations in linear layers
-        # (only linear transformations)
-        if self.multiple_linear:
-            for dense_layer in self.linear_layers:
-                x = dense_layer(x)
-                if self.activation_func_linear is not None:
-                    x = self.activation_func_linear(x)
-                x = F.dropout(x, p=0.3, training=self.training)
-
+        x = self.project(data)
+        x = F.dropout(x, p=0.3, training=self.training)
         x = self.final_layer(x)
 
         if self.model_type == 'regression':
             return x
-
         elif self.model_type == 'multiclass':
             x = F.log_softmax(x, dim =1)
             return x
         elif self.model_type == 'binary':
-            return F.sigmoid(x)
+            return torch.sigmoid(x)
         elif self.model_type == 'multilabel':
-            return F.sigmoid(x)
+            return torch.sigmoid(x)
 
         else:
             raise ValueError(
-                'model_type needs to be one of: ["regression", "multiclass", "binary", "multilabel"]'
+                'model_type needs to be one of:\
+				["regression", "multiclass", "binary", "multilabel"]'
             )
 
     def project(self, data, pool = True, reg_hook_input = False, reg_hook_conv = False):
@@ -183,7 +158,7 @@ class GNNBase(nn.Module):
         for conv_layer in self.conv_encoder:
             x = conv_layer(x, edge_index)
             x = self.activation_func_conv(x)
-            x = torch.tanh(x)
+            #x = torch.tanh(x)
 
         if reg_hook_conv:
             h = x.register_hook(self.activations_hook)
@@ -251,6 +226,8 @@ class GNNBase(nn.Module):
             for x in batch_x_preds:
                 encoded_sample = x.reshape(latent_dim)
                 yield encoded_sample
+
+
 
 
 class GraphConvNetwork(GNNBase):
@@ -459,6 +436,127 @@ class GraphAttentionNetwork(GNNBase):
         self.activation_func_linear = act_func_linear
 
 
+class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
+    """		 _______________________________
+            |				    |           |
+            |					|			+----> MLP
+            Avg					Avg			Avg
+            |					|			|
+    GCN > SAGPool > GCN >  SAGPool > GCN > SAGPool
+    """
+    def __init__(
+        self,
+        dims_conv,
+        dims_lin,
+        model_type,
+        n_embeddings,
+        embedding_dim = 20,
+        sag_pooling_ratio = 0.5,
+        pooling = 'mean',
+        act_func_conv = torch.tanh,
+        act_func_lin = torch.tanh,
+        residual = True
+        ):
+        """
+        Note: All graph conv layers should have the same dimension in the residual
+        mode. Only the first input channels will be the same as the embedding_dim.
+
+        Params
+        ------
+        embedding_dim (int, default = 20)
+            Size of the gene embedding layer.
+        """
+        super(HierarchicalNeuralGeneRegNet,self).__init__(
+            dims_conv=dims_conv,
+            dims_lin=dims_lin,
+            model_type=model_type,
+            act_func_conv = act_func_conv,
+            act_func_linear = act_func_lin
+        )
+        self.device = try_gpu()
+
+        self.n_genes = n_embeddings
+        self.embedding_dim = embedding_dim
+        self.embedding = nn.Embedding(self.n_genes, embedding_dim)
+		self.residual = residual
+
+        self.dims_conv = dims_conv
+
+        # SAGPool layers have in_channels = out_channels of every GCN
+        self.sag_pool_layers = nn.ModuleList(
+            [
+                SAGPooling(in_channels = dim,ratio = sag_pooling_ratio)
+                for dim in dims_conv[1:]
+            ]
+        )
+
+        if pooling == 'mean':
+            self.global_pool = global_mean_pool
+        elif pooling == 'add':
+            self.global_pool = global_add_pool
+        elif pooling == 'max':
+            self.global_pool = global_max_pool
+
+    def project(
+        self,
+        data,
+        reg_hook_input = False,
+        reg_hook_conv = False):
+        """
+        Projects data up to last hidden layer.
+
+        Params
+        -------
+        data (torch_geometric.data.data.Data)
+            A graph in torch_geometric format. Composed of node_features `x`,
+            edge_indices, and edge_features.
+        """
+
+        #print('At least started')
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+
+        #max_bs = batch.max()
+
+        #Convert x to graph embeddings
+        embedding_matrix = self.embedding(torch.arange(self.n_genes))
+
+        batch = batch.repeat_interleave(self.n_genes)#.shape
+
+        x = torch.cat([embedding_matrix.T*_x for _x in x], dim = 1).T
+
+        # In residual mode all GCN layers (but the first one)
+        # have the same dimensionality
+        if self.residual:
+            x_ = torch.zeros(self.dims_conv[1],device = self.device)
+
+        # Forward pass through conv layers
+        for ix, conv_layer in enumerate(self.conv_encoder):
+            x = conv_layer(x.float(), edge_index)
+            x = self.activation_func_conv(x)
+            x, edge_index, _, batch, _, _ = self.sag_pool_layers[ix](
+                x, edge_index, batch = batch
+            )
+
+            # Add intermediate graph embedding (readout)
+            if self.residual:
+                x_ = x_ + self.global_pool(x, batch)
+
+		# Residual mode just renames variable,
+		# else, pools node embeddings to graph embedding
+        if self.residual:
+            x_out = x_
+        else:
+            x_out = self.global_pool(x, batch)
+
+        # Project to last layer
+        if self.multiple_linear:
+            for dense_layer in self.linear_layers:
+                x_out = dense_layer(x_out)
+                if self.activation_func_linear is not None:
+                    x_out = self.activation_func_linear(x_out)
+
+        return x_out
+
 
 class supervised_model(nn.Module):
     """
@@ -495,7 +593,9 @@ class supervised_model(nn.Module):
         self.output_dim = dims[-1]
 
         # Start range from 1 so that dims[i-1] = dims[0]
-        linear_layers = [BnLinear(dims[i-1], dims[i]) for i in range(1, len(dims[:-1]))]
+        linear_layers = [
+			BnLinear(dims[i-1], dims[i]) for i in range(1, len(dims[:-1]))
+		]
 
         self.fc_layers = nn.ModuleList(linear_layers)
 
@@ -594,7 +694,7 @@ class supervised_model(nn.Module):
             if self.dropout:
                 x = F.dropout(x, p = 0.3)
             x = self.final_layer(x)
-            x = F.sigmoid(x)
+            x = torch.sigmoid(x)
 
             return x
 
@@ -602,7 +702,7 @@ class supervised_model(nn.Module):
             if self.dropout:
                 x = F.dropout(x)
             x = self.final_layer(x)
-            x = F.sigmoid(x)
+            x = torch.sigmoid(x)
 
             return x
 
@@ -721,7 +821,6 @@ class VariationalAutoencoder(nn.Module):
             z = torch.tanh(z)
 
         x = self.reconstruction_layer(z)
-        #x = self.sigmoid(x)
 
         return x
 
@@ -1081,7 +1180,9 @@ class VGG_(nn.Module):
 
         # MLP encoder: trainable
         self.linear_layers =[
-            BnLinear(dims_linear[i-1], dims_linear[i]) for i in range(1, len(linear_dims[:-1]))
+            BnLinear(
+				dims_linear[i-1], dims_linear[i]
+			) for i in range(1, len(linear_dims[:-1]))
         ]
 
         # Classifier layer : trainable
@@ -1122,7 +1223,7 @@ class VGG_(nn.Module):
             if self.dropout:
                 x = F.dropout(x, p = 0.3)
             x = self.final_layer(x)
-            x = F.sigmoid(x)
+            x = torch.sigmoid(x)
 
             return x
 
@@ -1130,6 +1231,6 @@ class VGG_(nn.Module):
             if self.dropout:
                 x = F.dropout(x)
             x = self.final_layer(x)
-            x = F.sigmoid(x)
+            x = torch.sigmoid(x)
 
             return x

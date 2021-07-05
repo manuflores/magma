@@ -1,9 +1,3 @@
-# ### utils
-#     - [>]  trainers
-#     - [>]  initialize
-#     - [>]  torch_adata
-#     - [>]  try_gpu
-#     - [>]  cells: get_count_stats, log_norm, cv_filter
 from .metrics import accuracy
 from .metrics import topk_acc
 from .metrics import generalized_distance_matrix
@@ -19,6 +13,7 @@ import numpy as np
 import pandas as pd
 import anndata as ad
 import seaborn as sns
+import networkx as nx
 
 import toolz as tz
 import tqdm
@@ -2795,3 +2790,78 @@ class EvaluateCrossRetrieval:
         self.c2m_acc_df = accuracy_df
         if return_:
             return accuracy_df
+
+
+def _ensure_sparse_csr_matrix(x):
+    """
+    Returns a scipy.csr_matrix given a numpy array or sparse matrix.
+    """
+    if sparse.issparse(x):
+        if sparse.isspmatrix_csr(x):
+            return x
+        else:
+            return x.tocsr()
+    else:
+        if isinstance(x, np.ndarray):
+            return sparse.csr_matrix(x)
+        else:
+            raise ValueError('Adj mat should be sparse matrix or numpy array')
+
+def csr_to_tensor(csr_mat):
+    """Returns a torch.sparse array from a scipy.csr_matrix."""
+    coo = csr_mat.tocoo()
+
+    values = coo.data
+    indices = np.vstack((coo.row, coo.col))
+
+    i = torch.LongTensor(indices)
+    v = torch.FloatTensor(values)
+    shape = coo.shape
+
+    torch_tensor = torch.sparse.FloatTensor(i, v, torch.Size(shape))#.to_dense()
+
+    return torch_tensor
+
+class CellGraph:
+    def __init__(
+        self,
+        gene_reg_net:nx.Graph,
+        adj_mat:sparse.csr_matrix,
+        gene_names:list,
+        supervised:bool = False,
+        #embeddings_matrix:nn.Embedding,
+        ):
+
+        self.supervised = supervised
+        self.cuda = torch.cuda.is_available()
+        self.device = try_gpu()
+
+        # Adjacency matrix
+        self.A = _ensure_sparse_csr_matrix(adj_mat)
+
+        # Edge_indices
+        edge_indices = csr_to_tensor(self.A).coalesce().indices()
+        self.edge_indices = edge_indices
+
+
+    def get_cell_graph(self, x, y=None):
+        """
+        Returns a torch_geometric.data.Data
+        given a vector of counts "x" and a label "y".
+
+        Params
+        ------
+        x (torch.Tensor)
+            Counts for each gene.
+
+        y (int, default = None)
+            Label for supervised models.
+        """
+
+        cell_graph = torch_geometric.data.Data(
+            x = torch.from_numpy(x).to(self.device),
+            y = y,
+            edge_index = self.edge_indices.to(self.device)
+        )
+
+        return cell_graph
