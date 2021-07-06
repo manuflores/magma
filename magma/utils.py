@@ -2456,7 +2456,7 @@ class EvaluateCrossRetrieval:
         if return_:
             return cosine_arr
 
-    def compute_dist_matrix(self, run_with_torch = False, return_=False):
+    def compute_dist_matrix(self, run_with_torch = False, return_=False, n_dims = 64):
         """
         Computes the euclidean distances between cells and molecules,
         and saves it as an attribute.
@@ -2468,6 +2468,11 @@ class EvaluateCrossRetrieval:
         except NameError:
             print('Projecting molecules using model.')
             mol_embedding = self.project_molecules()
+
+        try:
+            self.cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]]
+        except:
+            raise ValueError('Could not retrieve cell embeddings from adata, check adata or n_dims arg.')
 
         if run_with_torch:
             self.D = generalized_distance_matrix_torch(
