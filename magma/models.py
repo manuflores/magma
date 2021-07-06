@@ -478,7 +478,7 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
         self.n_genes = n_embeddings
         self.embedding_dim = embedding_dim
         self.embedding = nn.Embedding(self.n_genes, embedding_dim)
-		self.residual = residual
+        self.residual = residual
 
         self.dims_conv = dims_conv
 
