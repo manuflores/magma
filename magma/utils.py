@@ -2119,7 +2119,8 @@ class EvaluateCrossRetrieval:
         model_type = 'nn',
         dataset = 'thomsonlab',
         drugs_col_name = 'name',
-        precomputed_mol_embeddings = False
+        precomputed_mol_embeddings = False,
+        embedding_dim = 64
     ):
         """
         Params
@@ -2258,7 +2259,7 @@ class EvaluateCrossRetrieval:
             }
 
         if precomputed_mol_embeddings:
-            self.mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,n_dims +1)]].values
+            self.mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,embedding_dim +1)]].values
             self.precomputed_mol_embeddings = precomputed_mol_embeddings
 
     def eval_pipeline(
@@ -2455,7 +2456,7 @@ class EvaluateCrossRetrieval:
         if return_:
             return cosine_arr
 
-    def compute_dist_matrix(self, run_with_torch = False, precomputed = True, return_=False):
+    def compute_dist_matrix(self, run_with_torch = False, return_=False):
         """
         Computes the euclidean distances between cells and molecules,
         and saves it as an attribute.
