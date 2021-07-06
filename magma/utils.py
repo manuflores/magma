@@ -2645,7 +2645,7 @@ class EvaluateCrossRetrieval:
         elif mode == 'l2':
             n_significant = (sim_distro_drug < central_measure).sum()
 
-        percent_significant = n_significant / len(cosine_distro_drug) * 100
+        percent_significant = n_significant / len(sim_distro_drug) * 100
 
         return percent_significant
 
