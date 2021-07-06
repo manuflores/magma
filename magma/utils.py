@@ -2490,7 +2490,8 @@ class EvaluateCrossRetrieval:
         "Returns the top indices from a cosine similarity or L2 distance matrix."
         axis = 1 if data_type == 'mols' else 0
         #print(axis)
-        largest = True if mode == 'cosine' else 0
+        #largest = True if mode == 'cosine' else False
+        largest = mode == 'cosine'
 
         if data_type == 'mols':
             top_k = self.sample_counts.max()
