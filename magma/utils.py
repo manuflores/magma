@@ -2627,7 +2627,7 @@ class EvaluateCrossRetrieval:
         drug_ix = self.get_ix_drug(drug_name)
 
         # Get cosine distribution for drug and all others
-        sim_distro_drug, _ = self.get_similarity_drug_one_vs_all(
+        sim_distro_drug, sim_distro_others = self.get_similarity_drug_one_vs_all(
             drug_name, mode=mode
         )
 
