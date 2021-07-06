@@ -2542,7 +2542,7 @@ class EvaluateCrossRetrieval:
             similarities_cells_drug = self.cosine_arr[ix_drug, ix_cells]
             similarities_others = self.cosine_arr[ix_drug, other_cells_ix]
 
-        elif mode = 'l2':
+        elif mode == 'l2':
             n_mols, n_cells = self.D.shape
             #similarity_matrix = self.D
             similarities_cells_drug = self.D[ix_drug, ix_cells]
