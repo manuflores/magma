@@ -21,7 +21,7 @@ def generalized_distance_matrix(X,Y):
     n_x,k_x = X.shape
     n_y,k_y = Y.shape
 
-    assert k_x == k_y # dimensionality of vector spaces must be equal
+    assert k_x == k_y, 'Number of cols of data X is %d and of Y is'%(k_x, k_y) # dimensionality of vector spaces must be equal
 
     diag_x = np.zeros((n_x, 1))
     diag_y = np.zeros((1, n_y))
@@ -54,7 +54,7 @@ def generalized_distance_matrix_torch(X,Y):
     n_y,k_y = Y.shape
     dev = X.device
 
-    assert k_x == k_y
+    assert k_x == k_y, 'Number of cols of data X is %d and of Y is'%(k_x, k_y) # dimensionality of vector spaces must be equal
 
 
     diag_x = torch.zeros((n_x, 1))
