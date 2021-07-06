@@ -2538,11 +2538,12 @@ class EvaluateCrossRetrieval:
         and all other cells coming from other samples.
         """
         ix_drug, ix_cells = self.get_ix_drug(drug_name), self.get_ix_cells(drug_name)
-        # Get the indices of all perturbed with other molecules but `drug_name`'s
-        other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
 
         if mode == 'cosine':
             n_mols, n_cells = self.cosine_arr.shape
+
+            # Get the indices of all perturbed with other molecules but `drug_name`'s
+            other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
 
             #similarity_matrix = self.cosine_arr
             # Get cosine similarity/ l2 distance distribution of a drug with itself
@@ -2551,6 +2552,8 @@ class EvaluateCrossRetrieval:
 
         elif mode == 'l2':
             n_mols, n_cells = self.D.shape
+            # Get the indices of all perturbed with other molecules but `drug_name`'s
+            other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
             #similarity_matrix = self.D
             similarities_cells_drug = self.D[ix_drug, ix_cells]
             similarities_others = self.D[ix_drug, other_cells_ix]
