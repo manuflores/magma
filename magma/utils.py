@@ -2259,12 +2259,12 @@ class EvaluateCrossRetrieval:
 
         if precomputed_mol_embeddings:
             self.mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,n_dims +1)]].values
+            self.precomputed_mol_embeddings = precomputed_mol_embeddings
 
     def eval_pipeline(
         self,
         plot = False,
         mode = 'cosine',
-        project_mols = True,
         n_cores = 2
         ):
         """
@@ -2273,12 +2273,12 @@ class EvaluateCrossRetrieval:
 
         print('Computing mol2cell & cell2mol accuracy from %s matrix.'%mode)
 
-        if project_mols:
+        if not self.precomputed_mol_embeddings:
             self.project_molecules()
 
         if mode == 'cosine':
             self.compute_cosine_arr(
-                return_ = False, project_mols = project_mols, n_dims = 64
+                return_ = False, n_dims = 64
             )
         elif mode == 'l2':
             self.compute_dist_matrix()
@@ -2423,7 +2423,7 @@ class EvaluateCrossRetrieval:
     #     if return_:
     #         return cosine_arr
 
-    def compute_cosine_arr(self, return_ = False, project_mols = False, n_dims = 64):
+    def compute_cosine_arr(self, return_ = False, n_dims = 64):
         """
         Computes cosine array. It stores an output array
         """
