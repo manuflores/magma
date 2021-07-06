@@ -2470,7 +2470,7 @@ class EvaluateCrossRetrieval:
             mol_embedding = self.project_molecules()
 
         try:
-            self.cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]]
+            self.cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]].values
         except:
             raise ValueError('Could not retrieve cell embeddings from adata, check adata or n_dims arg.')
 
