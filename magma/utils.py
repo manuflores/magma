@@ -1987,7 +1987,7 @@ def get_stats(distro_x, distro_y):
 #     return cosine_similarity_distribution
 #
 #
-# def get_cosine_drug_one_vs_all(
+# def get_similarity_drug_one_vs_all(
 #     drugbank,
 #     adata,
 #     drug_name,
@@ -2107,6 +2107,9 @@ class EvaluateCrossRetrieval:
     It is designed for evaluation in a test set, comprised of a tuple
     (test molecules, test cells). Nevertheless, one can pass the full datasets
     (i.e. train+val+test) and still leverage the functionalities.
+
+    TO-DO: currently deisgned with cosine vs distance mode. Another design
+    that could make code easier to read is by defining cosine dist = 1-cos_theta
     """
     def __init__(
         self,
@@ -2115,7 +2118,8 @@ class EvaluateCrossRetrieval:
         model,
         model_type = 'nn',
         dataset = 'thomsonlab',
-        drugs_col_name = 'name'
+        drugs_col_name = 'name',
+        precomputed_mol_embeddings = False
     ):
         """
         Params
@@ -2150,6 +2154,15 @@ class EvaluateCrossRetrieval:
         - the cell data has the same columns (input features) for which both the
         cell encoder and the joint embedding model were trained on.
 
+
+        Attributes
+        ----------
+        name_to_target(dict): drug_name (key) -> drug target (value)
+        name_to_target(dict): drug_name (key) ->  drug class (value)
+        sample_counts(dict): Number of cells for each perturbation / drug / sample.
+                             drug_name -> # of cells perturbed by drug
+        sample_counts_ix (dict): drug_index -> # of cells perturbed by drug
+        ix_samples_cell (np.array): Perturbation's index of each cell.
         """
 
         self.cuda = torch.cuda.is_available()
@@ -2192,6 +2205,7 @@ class EvaluateCrossRetrieval:
         df_drugs_test['sample_code'] = codes
 
         self.drugbank = df_drugs_test
+
         self.adata = adata
         self.model = model
 
@@ -2243,6 +2257,9 @@ class EvaluateCrossRetrieval:
             'pathway': 'Purples_r'
             }
 
+        if precomputed_mol_embeddings:
+            self.mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,n_dims +1)]].values
+
     def eval_pipeline(
         self,
         plot = False,
@@ -2255,24 +2272,34 @@ class EvaluateCrossRetrieval:
         """
 
         print('Computing mol2cell & cell2mol accuracy from %s matrix.'%mode)
-        self.compute_cosine_arr(
-            return_ = False, project_mols = project_mols, n_dims = 64
-        )
-        #self.compute_dist_matrix()
+
+        if project_mols:
+            self.project_molecules()
+
+        if mode == 'cosine':
+            self.compute_cosine_arr(
+                return_ = False, project_mols = project_mols, n_dims = 64
+            )
+        elif mode == 'l2':
+            self.compute_dist_matrix()
+
+        else:
+            raise NameError('Mode to be one of [`cosine`, `l2`]. Input : %s'%mode)
+
 
         # Saves mol2cell accuracies in self.m2c_acc and in self.drugbank
         self.eval_mol2cell_accuracy(mode= mode, return_ = False)
 
         # Saves results in self.df_c2m for top5 accuracy
-        self.eval_cell2mol_accuracy()
+        self.eval_cell2mol_accuracy(mode = mode)
         self.get_acc_df_cell2mol()
         print('Finished computing accuracies.')
         # Run KS tests
         print('Running KS test...')
-        self.run_ks_one_vs_all(n_cores)
+        self.run_ks_one_vs_all(n_cores,mode=mode)
         print('Finished KS test.')
         # Run mol2cell above mean
-        self.eval_m2c_above_mean_all()
+        self.eval_m2c_above_mean_all(mode=mode)
 
         # Aggregate metrics
         self.eval_summary()
@@ -2326,7 +2353,7 @@ class EvaluateCrossRetrieval:
             print('Getting adata cell indices for :%s'%adata[ix_cells[0]].obs['drug_name'].values[0] )
         return ix_cells.astype(int)
 
-    def compute_mol_from_smiles(self):
+    def compute_rdkit_mol_from_smiles(self):
         self.drugbank['mol'] = self.drugbank.SMILES.apply(
             Chem.MolFromSmiles
         )
@@ -2334,12 +2361,12 @@ class EvaluateCrossRetrieval:
         self.name_to_mol = dict(self.drugbank[['drug_name', 'mol']].values)
 
     @torch.no_grad()
-    def project_molecules(self):
+    def project_molecules(self, _return = False):
         """
         Computes molecule embeddings in self.drugbank df.
         """
         #Get Rdkit mols in place
-        self.compute_mol_from_smiles()
+        self.compute_rdkit_mol_from_smiles()
 
         labels_tensor = torch.arange(len(self.drugbank))
 
@@ -2361,20 +2388,58 @@ class EvaluateCrossRetrieval:
         else:
             mol_embedding = mol_embedding.numpy()
 
-        return mol_embedding
+        self.mol_embedding = mol_embedding
+
+        if _return:
+            return mol_embedding
+
+    # refactoring
+    # def compute_cosine_arr(self, return_ = False, project_mols = False, n_dims = 64):
+    #     """
+    #     Computes cosine array. It stores an output array
+    #     """
+    #     if project_mols:
+    #         mol_embedding = self.project_molecules()
+    #     else:
+    #         mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,n_dims +1)]].values
+    #
+    #     cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]].values
+    #
+    #     #self.mol_embedding = mol_embedding
+    #     mol_embedding = self.mol_embedding
+    #
+    #     self.cell_embedding = cell_embedding
+    #
+    #     # Normalize to make row vectors
+    #     mol_embedding_norm  = mol_embedding / np.linalg.norm(mol_embedding, axis = 1).reshape(-1,1)
+    #     cell_embedding_norm = cell_embedding / np.linalg.norm(cell_embedding, axis = 1).reshape(-1,1)
+    #
+    #     # Compute cosine similarity, shape (molecules, cells)
+    #     cosine_arr = np.matmul(mol_embedding_norm, cell_embedding_norm.T)
+    #
+    #     #print('Shape of cosine similarity array: {0}'.format(cosine_arr.shape))
+    #     self.cosine_arr = cosine_arr
+    #
+    #     if return_:
+    #         return cosine_arr
 
     def compute_cosine_arr(self, return_ = False, project_mols = False, n_dims = 64):
         """
         Computes cosine array. It stores an output array
         """
-        if project_mols:
+        # Extracts the molecule embeddings if already in the object
+        try :
+            mol_embedding = self.mol_embedding
+
+        except NameError:
+            print('Projecting molecules using model.')
             mol_embedding = self.project_molecules()
-        else:
-            mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,n_dims +1)]].values
 
         cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]].values
 
-        self.mol_embedding = mol_embedding
+        #self.mol_embedding = mol_embedding
+        mol_embedding = self.mol_embedding
+
         self.cell_embedding = cell_embedding
 
         # Normalize to make row vectors
@@ -2396,14 +2461,21 @@ class EvaluateCrossRetrieval:
         and saves it as an attribute.
         It assumes compute_cosine_arr() has already been run.
         """
+        try :
+            mol_embedding = self.mol_embedding
+
+        except NameError:
+            print('Projecting molecules using model.')
+            mol_embedding = self.project_molecules()
+
         if run_with_torch:
             self.D = generalized_distance_matrix_torch(
-                torch.from_numpy(self.mol_embedding),
+                torch.from_numpy(mol_embedding),
                 torch.from_numpy(self.cell_embedding)
             )
         else:
             self.D = generalized_distance_matrix(
-                self.mol_embedding, self.cell_embedding
+                mol_embedding, self.cell_embedding
             )
         if return_:
             return self.D
@@ -2423,32 +2495,68 @@ class EvaluateCrossRetrieval:
                 .indices.numpy()
             )
 
-        else: # distance matrix
+        elif mode == 'l2': # distance matrix
             top_ixs = (
                 torch.from_numpy(self.D)
                 .topk(k=top_k, largest=largest, dim=axis)
                 .indices.numpy()
             )
 
+        else:
+            raise NameError('Mode %s is not implemented. Choose one of [`cosine`, `l2`.]'%mode)
+
         return top_ixs
 
+    # Refactoring ...
+    # def get_cosine_drug_one_vs_all(self, drug_name)->Tuple[np.ndarray, np.ndarray]:
+    #     """
+    #     Returns the cosine similarity distributions of a drug with cells perturbed by it,
+    #     and all other cells coming from other samples.
+    #     """
+    #     n_mols, n_cells = self.cosine_arr.shape
+    #     ix_drug, ix_cells = self.get_ix_drug(drug_name), self.get_ix_cells(drug_name)
+    #
+    #     # Get cosine similarity distribution of a drug with itself
+    #     cosine_cells_drug = self.cosine_arr[ix_drug, ix_cells]
+    #
+    #     # Get the indices of all perturbed with other molecules but `drug_name`'s
+    #     other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
+    #     cosine_others = self.cosine_arr[ix_drug, other_cells_ix]
+    #
+    #     return cosine_cells_drug, cosine_others
 
-    def get_cosine_drug_one_vs_all(self, drug_name)->Tuple[np.ndarray, np.ndarray]:
+    def get_similarity_drug_one_vs_all(self, drug_name, mode = 'cosine')->Tuple[np.ndarray, np.ndarray]:
         """
         Returns the cosine similarity distributions of a drug with cells perturbed by it,
         and all other cells coming from other samples.
         """
-        n_mols, n_cells = self.cosine_arr.shape
         ix_drug, ix_cells = self.get_ix_drug(drug_name), self.get_ix_cells(drug_name)
-
-        # Get cosine similarity distribution of a drug with itself
-        cosine_cells_drug = self.cosine_arr[ix_drug, ix_cells]
-
         # Get the indices of all perturbed with other molecules but `drug_name`'s
         other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
-        cosine_others = self.cosine_arr[ix_drug, other_cells_ix]
 
-        return cosine_cells_drug, cosine_others
+        if mode == 'cosine':
+            n_mols, n_cells = self.cosine_arr.shape
+
+            #similarity_matrix = self.cosine_arr
+            # Get cosine similarity/ l2 distance distribution of a drug with itself
+            similarities_cells_drug = self.cosine_arr[ix_drug, ix_cells]
+            similarities_others = self.cosine_arr[ix_drug, other_cells_ix]
+
+        elif mode = 'l2':
+            n_mols, n_cells = self.D.shape
+            #similarity_matrix = self.D
+            similarities_cells_drug = self.D[ix_drug, ix_cells]
+            similarities_others = self.D[ix_drug, other_cells_ix]
+        else:
+            raise NameError('Mode %s not implemented.'%mode)
+
+        # Get cosine similarity/ l2 distance distribution of a drug with itself
+        # similarities_cells_drug = similarity_matrix[ix_drug, ix_cells]
+        #
+        # # Get the indices of all perturbed with other molecules but `drug_name`'s
+        # other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
+        # similarities_others = similarity_matrix[ix_drug, other_cells_ix]
+        return similarities_cells_drug, similarities_others
 
 
     def eval_mol2cell_accuracy(self, mode= 'cosine', return_ = False):
@@ -2478,7 +2586,6 @@ class EvaluateCrossRetrieval:
 
     def eval_cell2mol_accuracy(self, mode = 'cosine'):
         top_ixs_cells = self.get_top_ixs(data_type = 'cells', mode = mode).T
-
         acc_indicator = np.zeros((self.adata.n_obs, 5))
 
         if isinstance(self.test_drugs_ixs, list):
@@ -2502,7 +2609,7 @@ class EvaluateCrossRetrieval:
         self.adata.obs = pd.concat([self.adata.obs, df_acc.set_index(self.adata.obs.index)], axis = 1)
 
 
-    def eval_m2c_mean(self, drug_name, mode = 'mean'):
+    def eval_m2c_mean(self, drug_name, centrality_measure = 'mean', mode = 'cosine'):
         """
         Computes the fraction of cells that have cosine similarity w.r.t. to its own molecule
         higher than the mean of the distribution across all cells.
@@ -2510,25 +2617,34 @@ class EvaluateCrossRetrieval:
         drug_ix = self.get_ix_drug(drug_name)
 
         # Get cosine distribution for drug and all others
-        cosine_distro_drug, cosine_distro_others = self.get_cosine_drug_one_vs_all(drug_name)
+        sim_distro_drug, _ = self.get_similarity_drug_one_vs_all(
+            drug_name, mode=mode
+        )
 
-        if mode=='mean':
-            central_measure = np.concatenate([ cosine_distro_drug, cosine_distro_others]).mean()
-        elif mode=='median':
-            central_measure = np.median(np.concatenate([ cosine_distro_drug, cosine_distro_others]))
+        if centrality_measure=='mean':
+            central_measure = np.concatenate([sim_distro_drug, sim_distro_others]).mean()
+        elif centrality_measure=='median':
+            central_measure = np.median(np.concatenate([sim_distro_drug, sim_distro_others]))
         else:
             raise NotImplementedError('%s is not implemented'%mode)
 
-        n_significant = (cosine_distro_drug > central_measure).sum()
+        if mode == 'cosine':
+            n_significant = (sim_distro_drug > central_measure).sum()
+
+        # Distance of correct molecule lower than mean of whole distribution
+        elif mode == 'l2':
+            n_significant = (sim_distro_drug < central_measure).sum()
+
         percent_significant = n_significant / len(cosine_distro_drug) * 100
 
         return percent_significant
 
-    def eval_m2c_above_mean_all(self, mode = 'mean', n_cores = 4, return_ = False):
+    def eval_m2c_above_mean_all(self, centrality_measure = 'mean', mode = 'cosine',
+        n_cores = 4, return_ = False):
         "Evaluate above-mean accuracy for all drugs."
 
         acc_arr = Parallel(n_jobs = n_cores)(
-            delayed(self.eval_m2c_mean)(drug, mode)
+            delayed(self.eval_m2c_mean)(drug, centrality_measure, mode)
             for drug in tqdm.tqdm(
                     self.test_drugs, position = 0, leave = True
                 )
@@ -2539,15 +2655,25 @@ class EvaluateCrossRetrieval:
         if return_:
             return acc_arr
 
-    def run_ks_test(self, drug_name):
+    def run_ks_test(self, drug_name, mode = 'cosine'):
         "Returns statistics of running one vs all test for a given drug."
-        own, others = self.get_cosine_drug_one_vs_all(drug_name)
-        ks, pval_ks, l1_score = get_stats(own, others)
+        own, others = self.get_similarity_drug_one_vs_all(drug_name, mode= mode)
+
+        if mode == 'cosine':
+            # Test for true distro of cosine sim having higher values
+            ks, pval_ks, l1_score = get_stats(own, others)
+
+        elif mode == 'l2':
+
+            # Test for true distro of l2 distances having lower values
+            ks, pval_ks, l1_score = get_stats(others, own)
+
         return ks, pval_ks, l1_score
 
     def run_ks_one_vs_all(
         self,
         n_cores = 4,
+        mode = 'cosine',
         stat_metric = 'ks_pval',
         thresh_stat = 1e-4,
         return_ = False
@@ -2574,7 +2700,7 @@ class EvaluateCrossRetrieval:
         """
 
         results = Parallel(n_jobs = n_cores)(
-            delayed(self.run_ks_test)(drug) for drug in tqdm.tqdm(
+            delayed(self.run_ks_test)(drug,mode) for drug in tqdm.tqdm(
                     self.test_drugs, position = 0, leave = True
                 )
         )
@@ -2692,7 +2818,7 @@ class EvaluateCrossRetrieval:
 
         return fig
 
-    def plot_ks(self, drug_name, export = None, path_figs= None, model_name= ''):
+    def plot_ks(self, drug_name, export = None, mode = 'cosine', path_figs= None, model_name= ''):
         "To run after executing `run_ks_one_vs_all`"
         data = self.drugbank[self.drugbank.drug_name == drug_name]
 
@@ -2709,7 +2835,7 @@ class EvaluateCrossRetrieval:
         except:
             pval = 0
 
-        own, others = self.get_cosine_drug_one_vs_all(drug_name)
+        own, others = self.get_similarity_drug_one_vs_all(drug_name, mode = mode)
 
         sorted_drug, ecdf_drug = ecdf(own)
         sorted_other, ecdf_other = ecdf(others)
