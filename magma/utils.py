@@ -1039,6 +1039,8 @@ class JointEmbeddingTrainer:
                     {'train_acc': results_dict_train['train_acc']}, ignore_index = True
                 )
 
+            df_train_loss['epoch'] = epoch + 1
+            df_train_acc['epoch'] = epoch +1
             mean_cl = df_train_loss.contrastive_loss.mean()
             mean_ml = df_train_loss.metric_learning_loss.mean()
             mean_acc = df_train_acc.train_acc.mean()
@@ -1060,6 +1062,8 @@ class JointEmbeddingTrainer:
                     {'test_acc': results_dict_test['test_acc']}, ignore_index = True
                 )
 
+            df_test_loss['epoch'] = epoch +1
+            df_test_loss['epoch'] = epoch +1
             mean_cl_ = df_test_loss.contrastive_loss.mean()
             mean_ml_ = df_test_loss.metric_learning_loss.mean()
             mean_acc_ = df_test_acc.test_acc.mean()
@@ -1077,28 +1081,28 @@ class JointEmbeddingTrainer:
                 if self.model_name is not None:
                     torch.save(
                         self.model.state_dict(),
-                        os.path.join(self.model_dir, self.model_name + '_' + str(epoch) + '.pt')
+                        os.path.join(self.model_dir, self.model_name + '_' + str(epoch +1) + '.pt')
                     )
                 else:
                     torch.save(
                         self.model.state_dict(),
-                        os.path.join(self.model_dir, 'model' + '_' + str(epoch) + '.pt')
+                        os.path.join(self.model_dir, 'model' + '_' + str(epoch +1) + '.pt')
                     )
 
         # Summarize results
         df_train_logs = pd.concat([df_train_loss, df_train_acc], axis = 1)
         df_test_logs = pd.concat([df_test_loss, df_test_acc], axis = 1)
 
-        epoch_indicator_train = np.concatenate(
-            [np.repeat(epoch, self.n_train_batches) for epoch in np.arange(1, self.n_epochs+1)]
-        )
-
-        epoch_indicator_test = np.concatenate(
-            [np.repeat(epoch, self.n_test_batches) for epoch in np.arange(1, self.n_epochs +1)]
-        )
-
-        df_train_logs['epoch'] = epoch_indicator_train
-        df_test_logs['epoch'] = epoch_indicator_test
+        # epoch_indicator_train = np.concatenate(
+        #     [np.repeat(epoch, self.n_train_batches) for epoch in np.arange(1, self.n_epochs+1)]
+        # )
+        #
+        # epoch_indicator_test = np.concatenate(
+        #     [np.repeat(epoch, self.n_test_batches) for epoch in np.arange(1, self.n_epochs +1)]
+        # )
+        #
+        # df_train_logs['epoch'] = epoch_indicator_train
+        # df_test_logs['epoch'] = epoch_indicator_test
 
         # Set logs as attributes
         self.train_logs = df_train_logs
