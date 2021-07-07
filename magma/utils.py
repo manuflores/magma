@@ -2291,6 +2291,8 @@ class EvaluateCrossRetrieval:
         if precomputed_mol_embeddings:
             self.mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,embedding_dim +1)]].values
             self.precomputed_mol_embeddings = precomputed_mol_embeddings
+        else:
+            self.precomputed_mol_embeddings = False
 
     def eval_pipeline(
         self,
