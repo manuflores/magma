@@ -32,12 +32,10 @@ import torch_geometric
 from torch_geometric.data import Batch
 
 from .chemspace import get_drug_batch
-#from rdkit.Chem.Draw import rdMolDraw2D
-#from rdkit.Chem import rdFMCS
+
 from rdkit import Chem
 from rdkit.Chem import AllChem
 import matplotlib.pyplot as plt
-#from rdkit import DataStructs
 
 def train_supervised_gcn(
     model:nn.Module,
@@ -730,18 +728,27 @@ def get_positive_negative_indices_batch(
 class JointEmbeddingTrainer:
     """
     Class for training the joint embedding model.
+
+    Notes
+    -----
+    Assumes both adata and df_drugs have coinciding names in the column
+    `drug_name`. Also assumes that adata has a column called `sample_codes`,
+    that are the numerical encoding of each drug name, i.e. that there's a
+    mapping {'drug_1': 0, ..., 'drug_n': (n-1)}.
+
     """
     def __init__(
         self,
         model,
         adata,
+        df_drugs,
         batch_size,
         train_loader,
         val_loader,
-        index_dict_train:dict,
-        index_dict_test:dict,
-        name_to_mol:dict,
-        ix_to_name:dict,
+        #index_dict_train:dict,
+        #index_dict_test:dict,
+        #name_to_mol:dict,
+        #ix_to_name:dict,
         lr:float = 1e-5,
         n_epochs:int = 20,
         metric_learning:bool = True,
@@ -752,6 +759,13 @@ class JointEmbeddingTrainer:
         model_dir:str = None,
         ):
         """
+        Params
+        ------
+        adata(ad.AnnData)
+            Base anndata, contains both train and validation sets.
+
+        df_drugs(pd.DataFrame)
+            Pandas df containing mols in train and val sets.
         """
         device = try_gpu()
         self.device = device
@@ -765,10 +779,6 @@ class JointEmbeddingTrainer:
             self.model = self.model.to(device)
 
         self.n_epochs = n_epochs
-        self.index_dict_train = index_dict_train
-        self.index_dict_test = index_dict_test
-        self.name_to_mol = name_to_mol
-        self.ix_to_name = ix_to_name
 
         self.hinge_loss = nn.TripletMarginLoss(margin=margin, p=p_norm_metric)
         self.criterion = nn.NLLLoss()
@@ -788,6 +798,22 @@ class JointEmbeddingTrainer:
             )
 
         self.model_name, self.model_dir = model_name, model_dir
+
+        # Groupby on train adata
+        gb_train = train_loader.dataset.data.obs.groupby('sample_code')
+        index_dict_train = {}
+        for ix, data in gb_train:
+            index_dict_train[ix] = data.index.values
+
+        gb_test = val_loader.dataset.data.obs.groupby('sample_code')
+        index_dict_test = {}
+        for ix, data in gb_test:
+            index_dict_test[ix] = data.index.values
+
+        self.index_dict_train = index_dict_train
+        self.index_dict_test = index_dict_test
+        self.name_to_mol = dict(df_drugs[['drug_name', 'mol']].values)
+        self.ix_to_name = dict(adata.obs[['sample_code', 'drug_name']].values)
 
 
     def contrastive_learning_loop(self, mol_embedding, cell_embedding):
@@ -2858,10 +2884,10 @@ class EvaluateCrossRetrieval:
             bbox_to_anchor = (1.04, 0), loc = 'lower left'
                   )
 
-        plt.title('One-vs-rest test KS: %.2f, KS pval: 1x10^ %.1f, l1: %.2f \n acc: %.1f'%(
+        plt.title('One-vs-rest test KS: %.2f, KS pval: 1x10^ %.1f, l1: %.2f \n acc mol2cell: %.1f'%(
             ks, pval, l1_score, acc
         ),)
-        plt.xlabel(r'$\mathrm{cos} \theta$ to %s mol.'%drug)
+        plt.xlabel(r'%s to %s mol.'%(mode,drug))
         plt.ylabel('ECDF')
 
         if export:
@@ -3001,3 +3027,58 @@ class CellGraph:
         )
 
         return cell_graph
+
+
+
+def get_dims_linear(weight_mat_layers, weight_dict):
+    dims = []
+    for ix, layer in enumerate(weight_mat_layers):
+        dim_out, dim_in = weight_dict[layer].shape
+        if ix == 0:
+            dims.extend([dim_in, dim_out])
+        else:
+            dims.append(dim_out)
+    return dims
+
+def get_dims_conv(weight_mat_layers, weight_dict):
+    dims = []
+    for ix, layer in enumerate(weight_mat_layers):
+        dim_in, dim_out = weight_dict[layer].shape
+        if ix == 0:
+            dims.extend([dim_in, dim_out])
+        else:
+            dims.append(dim_out)
+    return dims
+
+def infer_dims_from_state_dict(
+    weight_dict,#:collections.OrderedDict,
+    model_type = 'mlp'
+)->list:
+    """
+    Returns a list of dimensions for an mlp.
+
+    Params
+    ------
+    type (str, default = 'mlp')
+        One of mlp and gnn
+    """
+    layer_names = list(weight_dict.keys())
+    if model_type == 'mlp':
+        weight_mat_layers = [layer for layer in layer_names if 'weight' in layer]
+        dims = get_dims_linear(weight_mat_layers, weight_dict)
+        return dims
+
+    elif model_type == 'gnn':
+        conv_weight_layers = [
+            layer for layer in layer_names if 'graph' in layer and 'weight' in layer
+        ]
+
+        dims_conv = get_dims_conv(conv_weight_layers, weight_dict)
+
+        linear_layers = [
+            layer for layer in layer_names if 'linear.weight' in layer
+        ]
+
+        dims_lin = get_dims_linear(linear_layers)
+
+        return dims_conv, dims_lin
