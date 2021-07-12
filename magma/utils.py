@@ -2464,7 +2464,7 @@ class EvaluateCrossRetrieval:
         try :
             mol_embedding = self.mol_embedding
 
-        except NameError:
+        except AttributeError:
             print('Projecting molecules using model.')
             mol_embedding = self.project_molecules()
 
