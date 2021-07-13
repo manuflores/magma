@@ -2292,7 +2292,7 @@ class EvaluateCrossRetrieval:
             self.mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,embedding_dim +1)]].values
             self.precomputed_mol_embeddings = precomputed_mol_embeddings
         else:
-            self.precomputed_mol_embeddings = False
+            self.precomputed_mol_embeddings = None
 
     def eval_pipeline(
         self,
@@ -2306,7 +2306,7 @@ class EvaluateCrossRetrieval:
 
         print('Computing mol2cell & cell2mol accuracy from %s matrix.'%mode)
 
-        if not self.precomputed_mol_embeddings:
+        if self.precomputed_mol_embeddings is None:
             self.project_molecules()
 
         if mode == 'cosine':
@@ -2322,11 +2322,11 @@ class EvaluateCrossRetrieval:
 
         # Saves mol2cell accuracies in self.m2c_acc and in self.drugbank
         self.eval_mol2cell_accuracy(mode= mode, return_ = False)
-
+        print('Finised computing mol2cell accuracies.')
         # Saves results in self.df_c2m for top5 accuracy
         self.eval_cell2mol_accuracy(mode = mode)
         self.get_acc_df_cell2mol()
-        print('Finished computing accuracies.')
+        print('Finished computing cell2mol accuracies.')
         # Run KS tests
         print('Running KS test...')
         self.run_ks_one_vs_all(n_cores,mode=mode)

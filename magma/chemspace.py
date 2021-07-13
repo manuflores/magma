@@ -17,6 +17,14 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import DataStructs
 
+from io import BytesIO
+from PIL import Image
+import base64
+
+from bokeh.plotting import figure, show, output_notebook
+from bokeh.models import HoverTool, ColumnDataSource, CategoricalColorMapper
+from bokeh.palettes import Spectral10
+
 possible_atom_list = [
 	'S', 'Si', 'F', 'Fl', 'O', 'C', 'I', 'P', 'Cl',
 	'Br', 'N', 'Unknown'
@@ -502,3 +510,32 @@ def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = None):
         drug_graphs.append(graph)
 
     return drug_graphs
+
+
+def mol_to_bokeh_encodable(mol):
+    """
+    Returns a bytes string readable by bokeh using hovertooltips.
+    """
+    # Get PIL image
+    im = Chem.Draw.MolToImage(mol, size = (130, 140))
+
+    # Initialize in-memory bytes buffer
+    buffer = BytesIO()
+
+    # Load image data onto buffer
+    im.save(buffer, format='png')
+
+    # Get bytes data
+    for_encoding=buffer.getvalue()
+
+    return 'data:image/png;base64,' + base64.b64encode(for_encoding).decode()
+
+
+from rdkit.Chem.Scaffolds import MurckoScaffold
+
+def deconstruct_mol(mol):
+	"Returns a scaffold and sidechains from a molecule."
+	core = MurckoScaffold.GetScaffoldForMol(mol)
+	tmp = Chem.ReplaceCore(mol, core, labelByIndex=True)
+	frags = Chem.GetMolFrags(tmp, asMols=True)
+	return core, frags
