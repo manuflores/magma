@@ -1747,7 +1747,7 @@ def cv_filter(
 		return adata
 
 @tz.curry
-def sample_to_name(sample_id, eliminate_parens = False, eliminate_hcl = True):
+def sample_to_name(sample_id, eliminate_parens = True, eliminate_hcl = False):
     """
     Returns processed version of sample id.
 
@@ -3037,6 +3037,10 @@ class CellGraph:
 
 
 def get_dims_linear(weight_mat_layers, weight_dict):
+    """
+    Returns a list of dimensions of layers of an mlp in decreasing order.
+    """
+
     dims = []
     for ix, layer in enumerate(weight_mat_layers):
         dim_out, dim_in = weight_dict[layer].shape
@@ -3047,6 +3051,9 @@ def get_dims_linear(weight_mat_layers, weight_dict):
     return dims
 
 def get_dims_conv(weight_mat_layers, weight_dict):
+    """
+    Returns a list of dimensions of layers of an GraphConvNet in decreasing order.
+    """
     dims = []
     for ix, layer in enumerate(weight_mat_layers):
         dim_in, dim_out = weight_dict[layer].shape
@@ -3070,7 +3077,7 @@ def infer_dims_from_state_dict(
     """
     layer_names = list(weight_dict.keys())
     if model_type == 'mlp':
-        weight_mat_layers = [layer for layer in layer_names if 'weight' in layer]
+        weight_mat_layers = [layer for layer in layer_names if 'linear.weight' in layer]
         dims = get_dims_linear(weight_mat_layers, weight_dict)
         return dims
 
