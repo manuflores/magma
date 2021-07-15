@@ -3092,6 +3092,6 @@ def infer_dims_from_state_dict(
             layer for layer in layer_names if 'linear.weight' in layer
         ]
 
-        dims_lin = get_dims_linear(linear_layers)
+        dims_lin = get_dims_linear(linear_layers, weight_dict)
 
         return dims_conv, dims_lin
