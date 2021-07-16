@@ -92,6 +92,7 @@ def val_supervised_gcn(
             y_pred.float(),
             y_true.reshape(-1, n_out).float()
         )
+
         acc = accuracy(y_pred, y_true)
 
     return loss.mean(), acc
@@ -2197,6 +2198,7 @@ class EvaluateCrossRetrieval:
         """
 
         self.cuda = torch.cuda.is_available()
+        self.embedding_dim = embedding_dim
 
         # Format column names
         if 'drug_name' not in adata.obs.columns:
@@ -2310,9 +2312,7 @@ class EvaluateCrossRetrieval:
             self.project_molecules()
 
         if mode == 'cosine':
-            self.compute_cosine_arr(
-                return_ = False, n_dims = 64
-            )
+            self.compute_cosine_arr(return_ = False)
         elif mode == 'l2':
             self.compute_dist_matrix()
 
@@ -2456,7 +2456,7 @@ class EvaluateCrossRetrieval:
     #     if return_:
     #         return cosine_arr
 
-    def compute_cosine_arr(self, return_ = False, n_dims = 64):
+    def compute_cosine_arr(self, return_ = False):
         """
         Computes cosine array. It stores an output array
         """
@@ -2468,7 +2468,7 @@ class EvaluateCrossRetrieval:
             print('Projecting molecules using model.')
             mol_embedding = self.project_molecules()
 
-        cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]].values
+        cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, self.embedding_dim+1)]].values
 
         #self.mol_embedding = mol_embedding
         mol_embedding = self.mol_embedding
@@ -2488,7 +2488,7 @@ class EvaluateCrossRetrieval:
         if return_:
             return cosine_arr
 
-    def compute_dist_matrix(self, run_with_torch = False, return_=False, n_dims = 64):
+    def compute_dist_matrix(self, run_with_torch = False, return_=False):
         """
         Computes the euclidean distances between cells and molecules,
         and saves it as an attribute.
@@ -2502,7 +2502,7 @@ class EvaluateCrossRetrieval:
             mol_embedding = self.project_molecules()
 
         try:
-            self.cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]].values
+            self.cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, self.embedding_dim+1)]].values
         except:
             raise ValueError('Could not retrieve cell embeddings from adata, check adata or n_dims arg.')
 
