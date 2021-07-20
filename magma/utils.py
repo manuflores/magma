@@ -1119,7 +1119,7 @@ class JointEmbeddingTrainer:
         df_train_agg = df_train_logs.groupby('epoch').mean().reset_index()
         df_test_agg = df_test_logs.groupby('epoch').mean().reset_index()
 
-        self.best_model_ix = df_test_agg.test_acc.argmax()
+        self.best_model_ix = int(df_test_agg.test_acc.argmax())
 
         return df_train_logs, df_test_logs #df_train_agg, df_test_agg
 
