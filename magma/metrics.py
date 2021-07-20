@@ -75,6 +75,10 @@ def generalized_distance_matrix_torch(X,Y):
 
 def accuracy(y_pred:torch.Tensor, y_true:torch.Tensor):
     "Returns the accuracy (fraction) between predicted and true labels."
+
+    if y_pred.shape[1] == 1:
+        y_pred = y_pred.flatten()
+
     acc = torch.eq(y_true, y_pred).sum().item() / y_true.shape[0]
     return acc
 

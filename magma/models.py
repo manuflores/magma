@@ -513,16 +513,14 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
         """
 
         #print('At least started')
-        x, edge_index, batch = data.x, data.edge_index, data.batch
-
-        #max_bs = batch.max()
+        x, edge_ix, batch = data.x, data.edge_index, data.batch
+        batch = batch.repeat_interleave(self.n_genes)
 
         #Convert x to graph embeddings
         embedding_matrix = self.embedding(torch.arange(self.n_genes))
 
-        batch = batch.repeat_interleave(self.n_genes)#.shape
-
-        x = torch.cat([embedding_matrix.T*_x for _x in x], dim = 1).T
+		# Scale embeddings by the mRNA counts
+        x = x.T*embedding_matrix
 
         # In residual mode all GCN layers (but the first one)
         # have the same dimensionality
@@ -533,8 +531,8 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
         for ix, conv_layer in enumerate(self.conv_encoder):
             x = conv_layer(x.float(), edge_index)
             x = self.activation_func_conv(x)
-            x, edge_index, _, batch, _, _ = self.sag_pool_layers[ix](
-                x, edge_index, batch = batch
+            x, edge_ix, _, batch, top_ixs, top_att_wts = self.sag_pool_layers[ix](
+                x, edge_ix, batch = batch
             )
 
             # Add intermediate graph embedding (readout)
