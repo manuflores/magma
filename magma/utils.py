@@ -1043,7 +1043,7 @@ class JointEmbeddingTrainer:
                     {'train_acc': results_dict_train['train_acc']}, ignore_index = True
                 )
 
-            df_train_loss['epoch'] = epoch + 1
+            #df_train_loss['epoch'] = epoch + 1
             #df_train_acc['epoch'] = epoch +1
 
             mean_cl = df_train_loss.contrastive_loss.mean()
@@ -1069,7 +1069,7 @@ class JointEmbeddingTrainer:
                     {'test_acc': results_dict_test['test_acc']}, ignore_index = True
                 )
 
-            df_test_loss['epoch'] = epoch + 1
+            #df_test_loss['epoch'] = epoch + 1
             #df_test_acc['epoch'] = epoch + 1
 
             mean_cl_ = df_test_loss.contrastive_loss.mean()
@@ -1101,16 +1101,16 @@ class JointEmbeddingTrainer:
         df_train_logs = pd.concat([df_train_loss, df_train_acc], axis = 1)
         df_test_logs = pd.concat([df_test_loss, df_test_acc], axis = 1)
 
-        # epoch_indicator_train = np.concatenate(
-        #     [np.repeat(epoch, self.n_train_batches) for epoch in np.arange(1, self.n_epochs+1)]
-        # )
-        #
-        # epoch_indicator_test = np.concatenate(
-        #     [np.repeat(epoch, self.n_test_batches) for epoch in np.arange(1, self.n_epochs +1)]
-        # )
-        #
-        # df_train_logs['epoch'] = epoch_indicator_train
-        # df_test_logs['epoch'] = epoch_indicator_test
+        epoch_indicator_train = np.concatenate(
+            [np.repeat(epoch, self.n_train_batches) for epoch in np.arange(1, self.n_epochs+1)]
+        )
+
+        epoch_indicator_test = np.concatenate(
+            [np.repeat(epoch, self.n_test_batches) for epoch in np.arange(1, self.n_epochs +1)]
+        )
+
+        df_train_logs['epoch'] = epoch_indicator_train
+        df_test_logs['epoch'] = epoch_indicator_test
 
         # Set logs as attributes
         self.train_logs = df_train_logs
@@ -1121,7 +1121,7 @@ class JointEmbeddingTrainer:
 
         self.best_model_ix = df_test_agg.test_acc.argmax()
 
-        return df_train_logs, df_test_logs #df_train_agg, df_test_agg 
+        return df_train_logs, df_test_logs #df_train_agg, df_test_agg
 
 
 def train_vae(
