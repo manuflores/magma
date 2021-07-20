@@ -1058,13 +1058,19 @@ class JointEmbeddingTrainer:
 
                 # Val step
                 results_dict_test = self.val_step(input_tensor, y_true)
+                print('test_dict_loss', results_dict_test['test_loss'])
+
                 df_test_loss = df_test_loss.append(results_dict_test['test_loss'], ignore_index = True)
+
+                print('test_dict_acc', results_dict_test['test_acc'])
+
                 df_test_acc = df_train_acc.append(
                     {'test_acc': results_dict_test['test_acc']}, ignore_index = True
                 )
 
-            df_test_loss['epoch'] = epoch +1
-            df_test_loss['epoch'] = epoch +1
+            df_test_loss['epoch'] = epoch + 1
+            df_test_loss['epoch'] = epoch + 1
+
             mean_cl_ = df_test_loss.contrastive_loss.mean()
             mean_ml_ = df_test_loss.metric_learning_loss.mean()
             mean_acc_ = df_test_acc.test_acc.mean()
