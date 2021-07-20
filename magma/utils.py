@@ -1121,9 +1121,7 @@ class JointEmbeddingTrainer:
 
         self.best_model_ix = df_test_agg.test_acc.argmax()
 
-        return df_train_agg, df_test_agg
-
-        #df_train_logs, df_test_logs #
+        return df_train_logs, df_test_logs #df_train_agg, df_test_agg 
 
 
 def train_vae(
