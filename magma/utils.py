@@ -1062,13 +1062,10 @@ class JointEmbeddingTrainer:
 
                 # Val step
                 results_dict_test = self.val_step(input_tensor, y_true)
-                #print('test_dict_loss', results_dict_test['test_loss'])
 
                 df_test_loss = df_test_loss.append(results_dict_test['test_loss'], ignore_index = True)
 
-                #print('test_dict_acc', results_dict_test['test_acc'])
-
-                df_test_acc = df_train_acc.append(
+                df_test_acc = df_test_acc.append(
                     {'test_acc': results_dict_test['test_acc']}, ignore_index = True
                 )
 
@@ -1119,12 +1116,14 @@ class JointEmbeddingTrainer:
         self.train_logs = df_train_logs
         self.test_logs = df_test_logs
 
-        #df_train_agg = df_train_logs.groupby('epoch').mean()
-        #df_test_agg = df_test_logs.groupby('epoch').mean()
+        df_train_agg = df_train_logs.groupby('epoch').mean().reset_index()
+        df_test_agg = df_test_logs.groupby('epoch').mean().reset_index()
 
-        #self.best_model_ix = df_test_agg.test_acc.argmax()
+        self.best_model_ix = df_test_agg.test_acc.argmax()
 
-        return df_train_logs, df_test_logs #df_train_agg, df_test_agg
+        return df_train_agg, df_test_agg
+
+        #df_train_logs, df_test_logs #
 
 
 def train_vae(
