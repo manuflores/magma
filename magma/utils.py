@@ -1028,6 +1028,8 @@ class JointEmbeddingTrainer:
         df_train_loss, df_train_acc = pd.DataFrame(), pd.DataFrame()
         df_test_loss, df_test_acc = pd.DataFrame(), pd.DataFrame()
 
+        #df_train_logs, df_test_logs = pd.DataFrame(), pd.DataFrame()
+
         for epoch in np.arange(self.n_epochs):
             self.model.train()
             # Loop through minibatches from training dataloader
@@ -1035,13 +1037,15 @@ class JointEmbeddingTrainer:
 
                 # Train step
                 results_dict_train = self.train_step(input_tensor, y_true)
+
                 df_train_loss = df_train_loss.append(results_dict_train['train_loss'], ignore_index = True)
                 df_train_acc = df_train_acc.append(
                     {'train_acc': results_dict_train['train_acc']}, ignore_index = True
                 )
 
             df_train_loss['epoch'] = epoch + 1
-            df_train_acc['epoch'] = epoch +1
+            #df_train_acc['epoch'] = epoch +1
+
             mean_cl = df_train_loss.contrastive_loss.mean()
             mean_ml = df_train_loss.metric_learning_loss.mean()
             mean_acc = df_train_acc.train_acc.mean()
@@ -1058,18 +1062,18 @@ class JointEmbeddingTrainer:
 
                 # Val step
                 results_dict_test = self.val_step(input_tensor, y_true)
-                print('test_dict_loss', results_dict_test['test_loss'])
+                #print('test_dict_loss', results_dict_test['test_loss'])
 
                 df_test_loss = df_test_loss.append(results_dict_test['test_loss'], ignore_index = True)
 
-                print('test_dict_acc', results_dict_test['test_acc'])
+                #print('test_dict_acc', results_dict_test['test_acc'])
 
                 df_test_acc = df_train_acc.append(
                     {'test_acc': results_dict_test['test_acc']}, ignore_index = True
                 )
 
             df_test_loss['epoch'] = epoch + 1
-            df_test_loss['epoch'] = epoch + 1
+            #df_test_acc['epoch'] = epoch + 1
 
             mean_cl_ = df_test_loss.contrastive_loss.mean()
             mean_ml_ = df_test_loss.metric_learning_loss.mean()
