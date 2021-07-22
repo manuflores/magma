@@ -281,12 +281,12 @@ def make_bokeh_plot_mols(
     """
     assert 'mol' in df.columns, 'Needs an rdkit molecule for visualization.'
 
+    if 'image' not in df_viz.columns:
+        df['image'] = df.mol.apply(mol_to_bokeh_encodable)
+
     df_viz = df[cols_viz]
     cats = df_viz[color_by].unique().astype(str)
     n_cats = cats.size
-
-    if 'image' not in df_viz.columns:
-        df_viz['image'] = df_viz.mol.apply(mol_to_bokeh_encodable)
 
     palette = cc.glasbey_dark[:n_cats]
 
