@@ -3245,7 +3245,7 @@ def get_knn_graph_louvain(data, k = 4, verbose =True):
     return G, clus_labels
 
 
-def get_bayesian_information_criterion(max_clusters, min_clusters = 2, data):
+def get_bayesian_information_criterion(data, max_clusters, min_clusters = 2):
 	"""
 	Returns the bayesian information criterion for a number of Gaussian Mixture models.
 	This is aimed to choose the number of clusters for a given dataset.
