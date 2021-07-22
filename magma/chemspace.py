@@ -157,7 +157,7 @@ def mol2tensors(mol, try_gpu = True):
 
 	#cuda = torch.cuda.is_available()
     if try_gpu:
-        device = mu.try_gpu()
+        device = try_gpu()
     else:
         device = 'cpu'
 
