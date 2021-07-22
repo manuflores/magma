@@ -565,8 +565,9 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
                 if self.activation_func_linear is not None:
                     x_out = self.activation_func_linear(x_out)
 
-		if return_top_ixs:
-			return x_out, top_ixs_list
+        if return_top_ixs:
+            return x_out, top_ixs_list
+
 
         return x_out
 
