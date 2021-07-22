@@ -156,10 +156,10 @@ def mol2tensors(mol, try_gpu = True):
     #node_feats, edge_ixs, edge_feats, adj = mol2graph_data(mol)
 
 	#cuda = torch.cuda.is_available()
-	if try_gpu:
-		device = mu.try_gpu()
-	else:
-		device = 'cpu'
+    if try_gpu:
+        device = mu.try_gpu()
+    else:
+        device = 'cpu'
 
     node_feats, edge_ixs, edge_feats = mol2graph_data(mol)
 
