@@ -1,8 +1,15 @@
 # viz
+from .chemspace import mol_to_bokeh_encodable
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 import numpy as np
+import bokeh
+
+from bokeh.plotting import figure
+from bokeh.models import HoverTool, ColumnDataSource, CategoricalColorMapper
+import colorcet as cc
 
 rcParams['axes.titlepad'] = 20
 
@@ -252,6 +259,65 @@ def lollipop_plot(
 
 
     plt.tight_layout()
+
+    return fig
+
+
+def make_bokeh_plot_mols(
+    df,
+    cols_viz,
+    color_by,
+    x = 'dim_1',
+    y = 'dim_2',
+    alpha = 0.6,
+    fig_kwargs ={
+        plot_width = 600,
+        plot_height = 300,
+        tools = ('pan', 'wheel_zoom', 'reset')
+    }
+    ):
+    """
+    Assumes has a mol column.
+    """
+    assert 'mol' in df.columns, 'Needs an rdkit molecule for visualization.'
+
+    df_viz = df[cols_viz]
+    cats = df_viz.color_by.unique()
+    n_cats = cats.size
+
+    if 'image' not in df_viz.columns:
+        df_viz['image'] = df_viz.mol.apply(mol_to_bokeh_encodable)
+
+    palette = cc.glasbey_dark[:n_cats]
+
+    color_mapping = CategoricalColorMapper(
+        factors = cats, palette = palette
+    )
+
+    datasource = ColumnDataSource(df_viz)
+
+    fig = figure(fig_kwargs)
+
+    fig.add_tools(HoverTool(tooltips="""
+    <div>
+        <div>
+            <img src='@image' style='float: left; margin: 2px 2px 2px 2px'/>
+        </div>
+        <div>
+            <span style='font-size: 12px; color: #224499'>Molecule:</span>
+            <span style='font-size: 14px'>@drug_name</span>
+        </div>
+    </div>
+    """))
+
+    fig.circle(
+        x, y,
+        color=dict(field=col_by, transform = color_mapping),
+        size=10,
+        line_alpha = 0.8,
+        fill_alpha = alpha,
+        source=datasource
+    )
 
     return fig
 
