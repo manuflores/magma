@@ -5,6 +5,9 @@ import gseapy
 import numpy as np
 import pandas as pd
 
+def get_deg_report_groups(adata, groups= None):
+    raise NotImplementedError
+
 def get_deg_report_vs_control(
     adata_control,
     adata_test,
@@ -37,7 +40,7 @@ def get_deg_report_vs_control(
     if run_enrichment:
         de_genes = df_report[df_report.pval_adj < pval_thresh]['gene_name'].values
 
-        # Run enrichment test 
+        # Run enrichment test
         df_enrichment_result = gseapy.enrichr(
             de_genes, 'Reactome_2016', outdir = './tmp/', no_plot = True
         )
