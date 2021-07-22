@@ -23,6 +23,7 @@ import collections
 from sklearn import metrics
 from sklearn.utils import sparsefuncs
 from sklearn.neighbors import kneighbors_graph
+from sklearn.mixture import GaussianMixture as GMM
 from joblib import Parallel, delayed
 
 import torch
@@ -2288,6 +2289,8 @@ class EvaluateCrossRetrieval:
             [self.name_to_ix[drug] for drug in self.adata.obs['drug_name'].values]
         )
 
+        self.drugbank['n_cells'] = self.drugbank.drug_name.map(self.sample_counts)
+
         #self.adata = self.adata.copy()
 
         # Assign some colormaps for plotting
@@ -3234,3 +3237,12 @@ def get_knn_graph_louvain(data, k = 4, verbose =True):
     clus_labels = clus.values()
 
     return G, clus_labels
+
+
+def run_gmm(data, k = 5):
+    seed = 47
+    clus_object = GMM(n_components = k, verbose = True, random_state = seed)
+    clus_object.fit(data)
+    labels = clus_object.predict(data)
+    bic = clus_object.bic(data)
+    return labels, clus_object, bic
