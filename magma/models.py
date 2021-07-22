@@ -501,7 +501,9 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
         self,
         data,
         reg_hook_input = False,
-        reg_hook_conv = False):
+        reg_hook_conv = False,
+		return_top_ixs = False
+		):
         """
         Projects data up to last hidden layer.
 
@@ -527,6 +529,10 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
         if self.residual:
             x_ = torch.zeros(self.dims_conv[1],device = self.device)
 
+		if return_top_ixs:
+			top_ixs_list = []
+			#top_ixs_dict = {}
+
         # Forward pass through conv layers
         for ix, conv_layer in enumerate(self.conv_encoder):
             x = conv_layer(x.float(), edge_index)
@@ -534,6 +540,12 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
             x, edge_ix, _, batch, top_ixs, top_att_wts = self.sag_pool_layers[ix](
                 x, edge_ix, batch = batch
             )
+
+			#assert graph.x[topk_ixs] * topk_att_wts.reshape(-1,1) == x
+			# A_new = Adj[topk_ixs, topk_ixs]
+
+			if return_top_ixs:
+				top_ixs_list.append(top_ixs, top_att_wts)
 
             # Add intermediate graph embedding (readout)
             if self.residual:
@@ -552,6 +564,9 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
                 x_out = dense_layer(x_out)
                 if self.activation_func_linear is not None:
                     x_out = self.activation_func_linear(x_out)
+
+		if return_top_ixs:
+			return x_out, top_ixs_list
 
         return x_out
 

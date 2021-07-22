@@ -2877,7 +2877,7 @@ class EvaluateCrossRetrieval:
         #print(drug)
         #acc = data['accuracy']
         #within_class_acc = data['within_class_acc']
-        ks, pval, l1_score, acc = data[['ks_score', 'ks_pval', 'l1_score', 'm2c_accuracy']].squeeze()
+        ks, pval, l1_score, acc,perc_above_mean = data[['ks_score', 'ks_pval', 'l1_score', 'm2c_accuracy', 'acc_above_mean']].squeeze()
 
         try:
             pval = np.log10(pval)
@@ -2897,8 +2897,8 @@ class EvaluateCrossRetrieval:
             bbox_to_anchor = (1.04, 0), loc = 'lower left'
                   )
 
-        plt.title('One-vs-rest test KS: %.2f, KS pval: 1x10^ %.1f, l1: %.2f \n acc mol2cell: %.1f'%(
-            ks, pval, l1_score, acc
+        plt.title('One-vs-rest test KS: %.2f \n KS pval: 1x10^ %.1f, l1: %.2f  acc mol2cell: %.1f, perc above mean: %.1f'%(
+            ks, pval, l1_score, acc, perc_above_mean
         ),)
         plt.xlabel(r'%s to %s mol.'%(mode,drug))
         plt.ylabel('ECDF')
@@ -2907,6 +2907,12 @@ class EvaluateCrossRetrieval:
             plt.savefig(
                 os.path.join(path_figs, drug + '_ks_test_%s.png'%model_name), bbox_inches = 'tight', dpi = 230
             );
+
+    def plot_ks_bokeh(self):
+        raise NotImplementedError
+
+    def plot_ks_bokeh_catplot(self):
+        raise NotImplementedError
 
     def plot_ks_all(self, export = True, path_figs= '../figs', model_name = ''):
         """
@@ -3102,3 +3108,78 @@ def infer_dims_from_state_dict(
         dims_lin = get_dims_linear(linear_layers, weight_dict)
 
         return dims_conv, dims_lin
+
+
+def get_scanpy_deg_report_df(
+    adata,
+    clus_annot = 'rank_genes_groups',
+    groups = ('-1','1'),
+    cols_annot = ["names", "logfoldchanges", "pvals_adj"]
+):
+    """
+    Returns a report dataframe of differentially expressed genes.
+    It expects an adata with a report dictionary from the output of
+    scanpy.tl.rank_genes_groups().
+
+    Params
+    ------
+    adata (ad.AnnData)
+        AnnData with rank_genes_groups dictionary in `.uns` object.
+        Ideally, this adata would only contain "prototype" cells,
+        that is, the cells on the extremes of a given component.
+
+    clus_annot(str, default = 'rank_genes_groups')
+        Label in the .uns object to get the results from.
+
+    groups (tuple, default = (-1,1))
+        Tuple of groups for which to extract the DEG results.
+
+    cols_annot(array-like, default= ["names", "logfoldchanges", "pvals_adj"])
+        Columns to use from the .uns object for the report.
+
+    """
+    # Extract dictionary from adata
+    deg_result_dict = adata.uns[clus_annot]
+
+    # Initialize dataframe
+    df_report = pd.DataFrame()
+
+    # Record information for each group / cluster in the report df
+    for g in groups:
+        df = pd.DataFrame(
+            np.vstack([[deg_result_dict[col][g] for col in cols_annot]]).T,
+            columns=["gene_name", "log_fc", "pval_adj"],
+        )
+
+        df["group"] = g
+
+        df_report = pd.concat([df_report, df])
+
+    return df_report
+
+def louvain_clustering(g):
+    """
+    Returns a list of cluster labels for each node in a graph g.
+
+    Params
+    ------
+    g (nx.Graph)
+        Input Graph .
+
+    Returns
+    -------
+    labels (array-like)
+    """
+    import community
+    clus = community.best_partition(g)
+
+    nx.set_node_attributes(g, values = clus, name = 'cluster')
+
+    n_clusters = max(clus.values())
+
+    cluster_list = []
+    for i in range(n_clusters):
+        cluster_indicator = [n for n in g.nodes() if g.node[n]['cluster'] == i]
+        cluster_list.append(cluster_indicator)
+
+    return cluster_list
