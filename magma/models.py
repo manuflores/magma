@@ -544,8 +544,8 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
 			#assert graph.x[topk_ixs] * topk_att_wts.reshape(-1,1) == x
 			# A_new = Adj[topk_ixs, topk_ixs]
 
-			if return_top_ixs:
-				top_ixs_list.append(top_ixs, top_att_wts)
+            if return_top_ixs:
+                top_ixs_list.append(top_ixs, top_att_wts)
 
             # Add intermediate graph embedding (readout)
             if self.residual:
