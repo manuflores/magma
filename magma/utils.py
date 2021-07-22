@@ -3164,7 +3164,7 @@ def make_knn_graph_eps(data, eps = 1):
     Make knn graph.
     """
     # Get distance matrix
-    D = metrics.pairwise_distances(data)
+    D = generalized_distance_matrix(data, data)
 
     # Keep only distances below epsilon
     mask = D <= eps
@@ -3201,17 +3201,6 @@ def get_louvain_clus_knn_graph(data, eps = 1, _plot = False, res = 1):
     clus = community.best_partition(g)
 
     return clus
-
-
-
-
-# Filter report by pval_adj
-
-# Get genes
-#de_genes
-
-# Optionally run the gseapy
-#df_enrichment_result = gseapy.enrichr(de_genes, 'Reactome_2016')
 
 
 # def louvain_clustering(g):
