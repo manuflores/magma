@@ -2,6 +2,7 @@ from .metrics import accuracy
 from .metrics import topk_acc
 from .metrics import generalized_distance_matrix
 from .metrics import generalized_distance_matrix_torch
+from .chemspace import get_drug_batch
 
 from typing import Optional, Sequence, Tuple, Union
 
@@ -33,8 +34,6 @@ from torch.utils.data import Dataset, IterableDataset, DataLoader
 
 import torch_geometric
 from torch_geometric.data import Batch
-
-from .chemspace import get_drug_batch
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -2268,6 +2267,9 @@ class EvaluateCrossRetrieval:
         # Make drug target and drug class annotation dictionaries
         if dataset == 'sciplex':
             self.name_to_target = dict(adata.obs[['drug_name', 'target']].values)
+            self.adata.obs['target'] = self.adata.obs.drug_name.apply(
+                lambda x: self.name_to_target[x] if x in self.name_to_target.keys() else 'undefined'
+            )
         else:# thomsonlab
             self.drugbank.rename(columns = {'Target': 'target'}, inplace = True)
             self.name_to_target = dict(df_drugs_test[['drug_name', 'target']].values)
@@ -2330,7 +2332,6 @@ class EvaluateCrossRetrieval:
 
         else:
             raise NameError('Mode to be one of [`cosine`, `l2`]. Input : %s'%mode)
-
 
         # Saves mol2cell accuracies in self.m2c_acc and in self.drugbank
         self.eval_mol2cell_accuracy(mode= mode, return_ = False)
@@ -3209,6 +3210,11 @@ def get_louvain_clus_knn_graph(data, eps = 1, _plot = False, res = 1):
 def get_knn_graph_louvain(data, k = 4, verbose =True):
     """
     Returns a knn graph in nx format and louvain cluster for each datapoint.
+
+    Params
+    ------
+    k(int)
+        Number of k neighbors to build the graph with.
     """
 
     if verbose:
@@ -3239,9 +3245,43 @@ def get_knn_graph_louvain(data, k = 4, verbose =True):
     return G, clus_labels
 
 
-def run_gmm(data, k = 5):
+def get_bayesian_information_criterion(max_clusters, min_clusters = 2, data):
+	"""
+	Returns the bayesian information criterion for a number of Gaussian Mixture models.
+	This is aimed to choose the number of clusters for a given dataset.
+	The number of clusters that minimizes the Bayesian information criterion, maximizes
+	the likelihood of the model best explaining the dataset.
+	Params
+	--------
+	max_clusters(int)
+		Maximum number of clusters to run against.
+	data (array-like or pd.DataFrame)
+		Dataset (n_samples, n_variables) to be clustered
+	Returns
+	--------
+	bic(list)
+		Bayesian information criterion score for each model.
+	"""
+
+	# Initialize array for the number of clusters
+	n_components = np.arange(min_clusters, max_clusters)
+
+	# Run a GMM model for each of the number of components
+	models = [GMM(n, covariance_type='full', random_state=0).fit(data)
+	          for n in n_components]
+
+	# Extract the Schwarz (bayesian) information criterion for each model
+	bic = [m.bic(data) for m in models]
+
+	return bic, models
+
+
+def run_gmm(data, n_clus = 5):
+    """
+    Returns the results from a Gaussian Mixture model with n_clus.
+    """
     seed = 47
-    clus_object = GMM(n_components = k, verbose = True, random_state = seed)
+    clus_object = GMM(n_components = n_clus, verbose = True, random_state = seed)
     clus_object.fit(data)
     labels = clus_object.predict(data)
     bic = clus_object.bic(data)

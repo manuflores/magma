@@ -1,4 +1,4 @@
-from .utils import try_gpu
+#from .utils import try_gpu
 import numpy as np
 from itertools import combinations
 import seaborn as sns
@@ -547,3 +547,13 @@ def deconstruct_mol(mol):
 	tmp = Chem.ReplaceCore(mol, core, labelByIndex=True)
 	frags = Chem.GetMolFrags(tmp, asMols=True)
 	return core, frags
+
+def try_gpu(i=0):
+    """
+    Return gpu(i) if exists, otherwise return cpu().
+
+    Extracted from https://github.com/d2l-ai/d2l-en/blob/master/d2l/torch.py
+    """
+    if torch.cuda.device_count() >= i + 1:
+        return torch.device(f'cuda:{i}')
+    return torch.device('cpu')
