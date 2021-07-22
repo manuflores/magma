@@ -291,7 +291,7 @@ def make_bokeh_plot_mols(
     palette = cc.glasbey_dark[:n_cats]
 
     color_mapping = CategoricalColorMapper(
-        factors = cats, palette = palette
+        factors = list(cats), palette = palette
     )
 
     datasource = ColumnDataSource(df_viz)
