@@ -148,7 +148,7 @@ def mol2graph_data(mol)->tuple:
     return np.stack(node_feats), np.stack(edge_ixs), np.stack(edge_feats)#, adj
 
 
-def mol2tensors(mol, try_gpu = True):
+def mol2tensors(mol, use_gpu = True):
     """
     Generates a torch_geometric.data.Data object from
     an RDkit molecule.
@@ -156,7 +156,7 @@ def mol2tensors(mol, try_gpu = True):
     #node_feats, edge_ixs, edge_feats, adj = mol2graph_data(mol)
 
 	#cuda = torch.cuda.is_available()
-    if try_gpu:
+    if use_gpu:
         device = try_gpu()
     else:
         device = 'cpu'
