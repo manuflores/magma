@@ -282,7 +282,7 @@ def make_bokeh_plot_mols(
     assert 'mol' in df.columns, 'Needs an rdkit molecule for visualization.'
 
     df_viz = df[cols_viz]
-    cats = df_viz.color_by.unique()
+    cats = df_viz[color_by].unique()
     n_cats = cats.size
 
     if 'image' not in df_viz.columns:
@@ -312,7 +312,7 @@ def make_bokeh_plot_mols(
 
     fig.circle(
         x, y,
-        color=dict(field=col_by, transform = color_mapping),
+        color=dict(field=color_by, transform = color_mapping),
         size=10,
         line_alpha = 0.8,
         fill_alpha = alpha,
