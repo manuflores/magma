@@ -296,7 +296,7 @@ def make_bokeh_plot_mols(
 
     datasource = ColumnDataSource(df_viz)
 
-    fig = figure(fig_kwargs)
+    fig = figure(**fig_kwargs)
 
     fig.add_tools(HoverTool(tooltips="""
     <div>
