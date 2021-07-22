@@ -529,9 +529,9 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
         if self.residual:
             x_ = torch.zeros(self.dims_conv[1],device = self.device)
 
-		if return_top_ixs:
-			top_ixs_list = []
-			#top_ixs_dict = {}
+        if return_top_ixs:
+            top_ixs_list = []
+            #top_ixs_dict = {}
 
         # Forward pass through conv layers
         for ix, conv_layer in enumerate(self.conv_encoder):
