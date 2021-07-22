@@ -14,6 +14,7 @@ import pandas as pd
 import anndata as ad
 import seaborn as sns
 import networkx as nx
+import community
 
 import toolz as tz
 import tqdm
@@ -3157,29 +3158,106 @@ def get_scanpy_deg_report_df(
 
     return df_report
 
-def louvain_clustering(g):
+
+def make_knn_graph_eps(data, eps = 1):
     """
-    Returns a list of cluster labels for each node in a graph g.
+    Make knn graph.
+    """
+    # Get distance matrix
+    D = metrics.pairwise_distances(data)
+
+    # Keep only distances below epsilon
+    mask = D <= eps
+    D_thresh = D*mask
+
+    # Make weighted adjacency matrix,
+    # weight is prop to inverse of distance
+    # and safe divide by zero
+    A = np.divide(1, D_thresh, out = np.zeros_like(D_thresh), where=D_thresh!=0)
+
+    G = nx.from_numpy_matrix(A)
+
+    return G
+
+def get_louvain_clus_knn_graph(data, eps = 1, _plot = False, res = 1):
+    """
+    Returns a dictionary containing the clusters for a knn graph G.
 
     Params
     ------
-    g (nx.Graph)
-        Input Graph .
 
     Returns
     -------
-    labels (array-like)
+
     """
-    import community
+
+    G = make_knn_graph_eps(data, eps=eps)
+
+    if _plot:
+        # Visualize graph
+        plt.figure(figsize = (3,3))
+        nx.draw(G, with_labels = True, node_size = 3, node_color = 'lightblue')
+
     clus = community.best_partition(g)
 
-    nx.set_node_attributes(g, values = clus, name = 'cluster')
+    return clus
 
-    n_clusters = max(clus.values())
 
-    cluster_list = []
-    for i in range(n_clusters):
-        cluster_indicator = [n for n in g.nodes() if g.node[n]['cluster'] == i]
-        cluster_list.append(cluster_indicator)
+def get_deg_report_vs_control(adata_control, adata_test):
+    """
+    Assumes that the adatas contain 'gene_name' in .var
+    """
+    # Get data from drug and control
+    deg_adata = ad.concat([adata_control, adata_test])
 
-    return cluster_list
+    deg_adata.var = adata_control.var
+
+    deg_adata.var.set_index('gene_name', drop =False,inplace = False)
+
+    drug_name = adata_test[0].obs.drug_name.values[0]
+
+    gps = ('control', drug_name)
+
+    # Run DEG
+    sc.tl.rank_gene_groups(deg_adata, 'drug_name', method = 'wilcoxon')
+
+    # Get report df
+    df_report = mu.get_scanpy_deg_report_df(deg_adata, groups = gps)
+
+    return df_report
+
+# Filter report by pval_adj
+
+# Get genes
+#de_genes
+
+# Optionally run the gseapy
+df_enrichment_result = gseapy.enrichr(de_genes, 'Reactome_2016')
+
+
+# def louvain_clustering(g):
+#     """
+#     Returns a list of cluster labels for each node in a graph g.
+#
+#     Params
+#     ------
+#     g (nx.Graph)
+#         Input Graph .
+#
+#     Returns
+#     -------
+#     labels (array-like)
+#     """
+#     import community
+#     clus = community.best_partition(g)
+#
+#     nx.set_node_attributes(g, values = clus, name = 'cluster')
+#
+#     n_clusters = max(clus.values())
+#
+#     cluster_list = []
+#     for i in range(n_clusters):
+#         cluster_indicator = [n for n in g.nodes() if g.node[n]['cluster'] == i]
+#         cluster_list.append(cluster_indicator)
+#
+#     return cluster_list
