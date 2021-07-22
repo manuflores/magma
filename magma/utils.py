@@ -3203,28 +3203,7 @@ def get_louvain_clus_knn_graph(data, eps = 1, _plot = False, res = 1):
     return clus
 
 
-def get_deg_report_vs_control(adata_control, adata_test):
-    """
-    Assumes that the adatas contain 'gene_name' in .var
-    """
-    # Get data from drug and control
-    deg_adata = ad.concat([adata_control, adata_test])
 
-    deg_adata.var = adata_control.var
-
-    deg_adata.var.set_index('gene_name', drop =False,inplace = False)
-
-    drug_name = adata_test[0].obs.drug_name.values[0]
-
-    gps = ('control', drug_name)
-
-    # Run DEG
-    sc.tl.rank_gene_groups(deg_adata, 'drug_name', method = 'wilcoxon')
-
-    # Get report df
-    df_report = mu.get_scanpy_deg_report_df(deg_adata, groups = gps)
-
-    return df_report
 
 # Filter report by pval_adj
 
@@ -3232,7 +3211,7 @@ def get_deg_report_vs_control(adata_control, adata_test):
 #de_genes
 
 # Optionally run the gseapy
-df_enrichment_result = gseapy.enrichr(de_genes, 'Reactome_2016')
+#df_enrichment_result = gseapy.enrichr(de_genes, 'Reactome_2016')
 
 
 # def louvain_clustering(g):
