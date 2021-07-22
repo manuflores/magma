@@ -22,6 +22,7 @@ import os
 import collections
 from sklearn import metrics
 from sklearn.utils import sparsefuncs
+from sklearn.neighbors import kneighbors_graph
 from joblib import Parallel, delayed
 
 import torch
@@ -3202,30 +3203,34 @@ def get_louvain_clus_knn_graph(data, eps = 1, _plot = False, res = 1):
 
     return clus
 
+def get_knn_graph_louvain(data, k = 4, verbose =True):
+    """
+    Returns a knn graph in nx format and louvain cluster for each datapoint.
+    """
 
-# def louvain_clustering(g):
-#     """
-#     Returns a list of cluster labels for each node in a graph g.
-#
-#     Params
-#     ------
-#     g (nx.Graph)
-#         Input Graph .
-#
-#     Returns
-#     -------
-#     labels (array-like)
-#     """
-#     import community
-#     clus = community.best_partition(g)
-#
-#     nx.set_node_attributes(g, values = clus, name = 'cluster')
-#
-#     n_clusters = max(clus.values())
-#
-#     cluster_list = []
-#     for i in range(n_clusters):
-#         cluster_indicator = [n for n in g.nodes() if g.node[n]['cluster'] == i]
-#         cluster_list.append(cluster_indicator)
-#
-#     return cluster_list
+    if verbose:
+        print('Starting kNN graph')
+    A = kneighbors_graph(
+        data, k, mode='connectivity', p = 2, include_self=True
+    )
+
+    if verbose:
+        print('Finished kNN graph.')
+        n_edges = A.data.size
+        print('The data had %d edges using k= %d'%(n_edges, k))
+
+    G = nx.from_scipy_sparse_matrix(A)
+
+    if verbose:
+        print('Starting Louvain clustering algorithm.')
+
+    clus = community.best_partition(G)
+    n_clus = max(clus.values())
+
+    if verbose:
+        print('Found using %d clusters with k = %d \n'%(n_clus, k))
+        print('Finished Louvain.')
+
+    clus_labels = clus.values()
+
+    return G, clus_labels
