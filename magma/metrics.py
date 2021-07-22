@@ -32,7 +32,14 @@ def generalized_distance_matrix(X,Y):
     for j in range(n_y):
         diag_y[0, j] = np.dot(Y[j], Y[j])
 
-    D = diag_x@np.ones((1,n_y)) + np.ones((n_x,1))@diag_y - 2*X@Y.T
+    g1 = diag_x@np.ones((1,n_y))
+    g2 = np.ones((n_x,1))@diag_y
+    D = g1 + g2 - 2*X@Y.T
+
+    di = np.diag_indices(D.shape[0])
+
+    # Set all values along diagonal to zero
+    D[di] = 0
 
     return np.sqrt(D)
 
