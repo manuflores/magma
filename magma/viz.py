@@ -271,9 +271,9 @@ def make_bokeh_plot_mols(
     y = 'dim_2',
     alpha = 0.6,
     fig_kwargs ={
-        plot_width = 600,
-        plot_height = 300,
-        tools = ('pan', 'wheel_zoom', 'reset')
+        plot_width : 600,
+        plot_height : 300,
+        tools : ('pan', 'wheel_zoom', 'reset')
     }
     ):
     """
