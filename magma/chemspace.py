@@ -1,3 +1,4 @@
+from .utils import try_gpu
 import numpy as np
 from itertools import combinations
 import seaborn as sns
@@ -147,18 +148,25 @@ def mol2graph_data(mol)->tuple:
     return np.stack(node_feats), np.stack(edge_ixs), np.stack(edge_feats)#, adj
 
 
-def mol2tensors(mol):
+def mol2tensors(mol, try_gpu = True):
     """
     Generates a torch_geometric.data.Data object from
     an RDkit molecule.
     """
     #node_feats, edge_ixs, edge_feats, adj = mol2graph_data(mol)
+
+	#cuda = torch.cuda.is_available()
+	if try_gpu:
+		device = mu.try_gpu()
+	else:
+		device = 'cpu'
+
     node_feats, edge_ixs, edge_feats = mol2graph_data(mol)
 
     data = Data(
-        x = torch.tensor(node_feats, dtype = torch.float),
-        edge_index =torch.tensor(edge_ixs, dtype = torch.long),
-        edge_attr = torch.tensor(edge_feats, dtype = torch.float)
+        x = torch.tensor(node_feats, dtype = torch.float, device = device),
+        edge_index =torch.tensor(edge_ixs, dtype = torch.long, device = device),
+        edge_attr = torch.tensor(edge_feats, dtype = torch.float, device = device)
     )
 
     return data
