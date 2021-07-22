@@ -281,7 +281,7 @@ def make_bokeh_plot_mols(
     """
     assert 'mol' in df.columns, 'Needs an rdkit molecule for visualization.'
 
-    if 'image' not in df_viz.columns:
+    if 'image' not in df.columns:
         df['image'] = df.mol.apply(mol_to_bokeh_encodable)
 
     df_viz = df[cols_viz]
