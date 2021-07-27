@@ -108,6 +108,8 @@ def run_deg_groups(
 
     adata_filt.obs['group'] = adata_filt.obs[group_column].map(mapper)
 
+    adata_filt.obs['group'] = adata_filt.obs['group'].astype("category")
+    
     adata_filt.var.set_index('gene_name', drop =False, inplace = True)
 
     #print(adata_filt.var.head())
