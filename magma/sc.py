@@ -42,6 +42,8 @@ def get_scanpy_deg_report_df(
     deg_result_dict = adata.uns[clus_annot]
 
     print(deg_result_dict["names"][:5])
+    print(deg_result_dict["logfoldchanges"][:5])
+    print(deg_result_dict["pvals_adj"][:5])
 
     # Initialize dataframe
     df_report = pd.DataFrame()
