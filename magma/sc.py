@@ -41,13 +41,15 @@ def get_scanpy_deg_report_df(
     # Extract dictionary from adata
     deg_result_dict = adata.uns[clus_annot]
 
+    print(deg_result_dict["names"][:5])
+
     # Initialize dataframe
     df_report = pd.DataFrame()
 
     # Record information for each group / cluster in the report df
     for g in groups:
         df = pd.DataFrame(
-            np.vstack([[deg_result_dict[col][g] for col in cols_annot]]).T,
+                np.vstack(([deg_result_dict[col][g] for col in cols_annot])).T,
             columns=["gene_name", "log_fc", "pval_adj"],
         )
 
@@ -94,7 +96,7 @@ def run_deg_groups(
 
     samples_in_scope = np.concatenate(list(groups.values()))
 
-    adata_filt = adata[adata.obs[group_column].isin(samples_in_scope)]
+    adata_filt = adata[adata.obs[group_column].isin(samples_in_scope)].copy()
 
     assert adata_filt.n_obs > 1, "adata is empty after filtering, check samples."
 
@@ -109,7 +111,7 @@ def run_deg_groups(
     adata_filt.obs['group'] = adata_filt.obs[group_column].map(mapper)
 
     adata_filt.obs['group'] = adata_filt.obs['group'].astype("category")
-    
+
     adata_filt.var.set_index('gene_name', drop =False, inplace = True)
 
     #print(adata_filt.var.head())
