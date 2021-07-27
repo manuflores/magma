@@ -41,9 +41,11 @@ def get_scanpy_deg_report_df(
     # Extract dictionary from adata
     deg_result_dict = adata.uns[clus_annot]
 
-    print(deg_result_dict["names"][:5])
-    print(deg_result_dict["logfoldchanges"][:5])
-    print(deg_result_dict["pvals_adj"][:5])
+    #print(deg_result_dict["names"][:5])
+    #print(deg_result_dict["logfoldchanges"][:5])
+    #print(deg_result_dict["pvals_adj"][:5])
+
+    print(groups)
 
     # Initialize dataframe
     df_report = pd.DataFrame()
@@ -51,7 +53,7 @@ def get_scanpy_deg_report_df(
     # Record information for each group / cluster in the report df
     for g in groups:
         df = pd.DataFrame(
-                np.concatenate([deg_result_dict[col][g] for col in cols_annot], axis = 1),
+                np.concatenate([deg_result_dict[col][str(g)] for col in cols_annot], axis = 1),
             columns=["gene_name", "log_fc", "pval_adj"],
         )
 
