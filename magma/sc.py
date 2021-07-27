@@ -49,7 +49,7 @@ def get_scanpy_deg_report_df(
     # Record information for each group / cluster in the report df
     for g in groups:
         df = pd.DataFrame(
-                np.vstack(([deg_result_dict[col][g] for col in cols_annot])).T,
+                np.concatenate([deg_result_dict[col][g] for col in cols_annot], axis = 1),
             columns=["gene_name", "log_fc", "pval_adj"],
         )
 
