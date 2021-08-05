@@ -519,10 +519,16 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
         batch = batch.repeat_interleave(self.n_genes)
 
         #Convert x to graph embeddings
-        embedding_matrix = self.embedding(torch.arange(self.n_genes, device = self.device))
+        embedding_matrix = self.embedding(
+			torch.arange(self.n_genes, device = self.device)
+		)
 
 		# Scale embeddings by the mRNA counts
-        x = x.T*embedding_matrix
+        #x = x.T*embedding_matrix
+        x = torch.cat(
+            [x[i].view(-1,1)*embedding_matrix for i in range(x.shape[0])],
+            axis = 0
+        )
 
         # In residual mode all GCN layers (but the first one)
         # have the same dimensionality
