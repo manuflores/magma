@@ -36,7 +36,7 @@ import torch_geometric
 from torch_geometric.data import Batch
 
 from rdkit import Chem
-from rdkit.Chem import AllChem
+from rdkit.Chem import AllChem, Draw
 import matplotlib.pyplot as plt
 
 def train_supervised_gcn(
@@ -186,7 +186,7 @@ def supervised_trainer_gcn(
             #input_tensor = data.view(batch_size, -1).float()
 
             if cuda:
-                data.edge_attr = data.edge_attr.cuda()
+                #data.edge_attr = data.edge_attr.cuda()
                 data.edge_index = data.edge_index.cuda()
                 data.x = data.x.cuda()
                 data.y = torch.tensor(data.y, device = device)
@@ -2903,7 +2903,7 @@ class EvaluateCrossRetrieval:
             bbox_to_anchor = (1.04, 0), loc = 'lower left'
                   )
 
-        plt.title('One-vs-rest test KS: %.2f \n KS pval: 1x10^ %.1f, l1: %.2f  acc mol2cell: %.1f, perc above mean: %.1f'%(
+        plt.title('One-vs-rest test KS: %.2f \n KS pval: 1x10^ %.1f, l1: %.2f \n acc mol2cell: %.1f, perc above mean: %.1f'%(
             ks, pval, l1_score, acc, perc_above_mean
         ),)
         plt.xlabel(r'%s to %s mol.'%(mode,drug))
@@ -2919,6 +2919,36 @@ class EvaluateCrossRetrieval:
 
     def plot_ks_bokeh_catplot(self):
         raise NotImplementedError
+        # df_cos_viz = evaluator.get_cosine_distribution_df(
+        #     'cerdulatinib',n_top = adata.n_obs, n_cells_filter = 0
+        # )
+
+        # df_cos_viz['is_drug'] = df_cos_viz.drug_name.apply(
+        #     lambda x: 'cerdulatinib' if x == 'cerdulatinib' else 'other'
+        # )
+
+        # pal = np.array(["dodgerblue", "lightgrey"])
+
+        # drug_name = 'cerdulatinib'
+
+        # ix_sort = np.argsort([drug_name, 'other'])
+
+        # ix_sort
+
+        # show(
+        #     bokeh_catplot.ecdf(
+        #         data=df_cos_viz.sort_values(by = 'is_drug'),
+        #         val="cosine_similarity",
+        #         cats="is_drug",
+        #         marker_kwargs={"alpha": 0.3},
+        #         tooltips=[
+        #             ("drug_name", "@drug_name"),
+        #             ("drug_class", "@drug_class"),
+        #             ("cosine_similarity", "@cosine_similarity"),
+        #         ],
+        #         palette=list(pal[ix_sort]),
+        #     )
+        # )
 
     def plot_ks_all(self, export = True, path_figs= '../figs', model_name = ''):
         """
@@ -2977,6 +3007,37 @@ class EvaluateCrossRetrieval:
         self.c2m_acc_df = accuracy_df
         if return_:
             return accuracy_df
+
+
+    def plot_report(self, drug_name, cols_viz = ['drug_name', 'drug_class']):
+        plt.figure(figsize = (3, 2))
+        self.plot_ks(drug_name)
+
+        n_cells = self.adata[self.adata.obs.drug_name == drug_name].n_obs
+        print('Number of cells : %d for drug %s'%(n_cells, drug_name))
+
+        df_cos_viz = self.get_cosine_distribution_df(
+            drug_name, cols_viz = cols_viz ,n_top= n_cells
+        )
+
+        df_cos_viz['name_class'] = df_cos_viz['drug_name'] + '_' + df_cos_viz['drug_class']
+
+        plt.figure(figsize = (4, 2))
+        sns.boxplot(
+            data = df_cos_viz.sort_values(
+                by = 'cosine_similarity', ascending = False
+            ),
+            x = 'cosine_similarity',
+            y = 'name_class',
+            palette = 'Blues_r'
+        )
+
+        df_mol_viz = self.drugbank[self.drugbank.drug_name.isin(df_cos_viz.drug_name.unique())]
+        im = Draw.MolsToGridImage(
+            df_mol_viz.mol.to_list(), legends = df_mol_viz.drug_name.to_list(), molsPerRow=4
+        )
+
+        return im
 
 
 def _ensure_sparse_csr_matrix(x):
@@ -3116,63 +3177,43 @@ def infer_dims_from_state_dict(
         return dims_conv, dims_lin
 
 
-def get_scanpy_deg_report_df(
-    adata,
-    clus_annot = 'rank_genes_groups',
-    groups = ('-1','1'),
-    cols_annot = ["names", "logfoldchanges", "pvals_adj"]
-):
+
+
+def make_knn_graph_eps(data, epsilon = 1, return_adjacency_only = False):
     """
-    Returns a report dataframe of differentially expressed genes.
-    It expects an adata with a report dictionary from the output of
-    scanpy.tl.rank_genes_groups().
+    Returns an ϵ-neighborhood  graph in NetworkX format. The graph is
+    constructed by connecting points whose distance is smaller than ϵ.
 
     Params
     ------
-    adata (ad.AnnData)
-        AnnData with rank_genes_groups dictionary in `.uns` object.
-        Ideally, this adata would only contain "prototype" cells,
-        that is, the cells on the extremes of a given component.
+    data (np.ndarray)
+        Dataset to make ϵ-graph from.
 
-    clus_annot(str, default = 'rank_genes_groups')
-        Label in the .uns object to get the results from.
+    epsilon(float, default = 1)
+        Minimum distance to deem a connection between two points.
 
-    groups (tuple, default = (-1,1))
-        Tuple of groups for which to extract the DEG results.
+    return_adjacency(bool, default = False)
+        Only return the adjacency matrix of the graph, instead of
+        the NetworkX graph.
 
-    cols_annot(array-like, default= ["names", "logfoldchanges", "pvals_adj"])
-        Columns to use from the .uns object for the report.
+    Returns
+    -------
+    G (nx.Graph)
+        Epsilon graph in nx fmt.
 
-    """
-    # Extract dictionary from adata
-    deg_result_dict = adata.uns[clus_annot]
+    A (optional)
+        Adjacency matrix.
 
-    # Initialize dataframe
-    df_report = pd.DataFrame()
-
-    # Record information for each group / cluster in the report df
-    for g in groups:
-        df = pd.DataFrame(
-            np.vstack([[deg_result_dict[col][g] for col in cols_annot]]).T,
-            columns=["gene_name", "log_fc", "pval_adj"],
-        )
-
-        df["group"] = g
-
-        df_report = pd.concat([df_report, df])
-
-    return df_report
-
-
-def make_knn_graph_eps(data, eps = 1):
-    """
-    Make knn graph.
+    Notes
+    -----
+    By default uses euclidean distance but could be generalized to use any
+    other distance metric.
     """
     # Get distance matrix
     D = generalized_distance_matrix(data, data)
 
     # Keep only distances below epsilon
-    mask = D <= eps
+    mask = D <= epsilon
     D_thresh = D*mask
 
     # Make weighted adjacency matrix,
@@ -3180,32 +3221,105 @@ def make_knn_graph_eps(data, eps = 1):
     # and safe divide by zero
     A = np.divide(1, D_thresh, out = np.zeros_like(D_thresh), where=D_thresh!=0)
 
+    if return_adjacency_only:
+        return A
+
     G = nx.from_numpy_matrix(A)
 
     return G
 
-def get_louvain_clus_knn_graph(data, eps = 1, _plot = False, res = 1):
+def get_louvain_clus_epsilon_graph(data, eps = 1, _plot = False, res = 1):
     """
     Returns a dictionary containing the clusters for a knn graph G.
 
     Params
     ------
+    data (np.ndarray)
+        Data to construct the kNN graph from.
+
+    eps (float)
+        Minimum distance to make an edge between two points.
+
+    res (float, default = 1)
+        Resolution for Louvain algorithm.
 
     Returns
     -------
-
+    clus (dict)
+        Dictionary of cluster membership for each datapoint.
+        Keys are the standard indices of the numpy array.
     """
 
     G = make_knn_graph_eps(data, eps=eps)
 
+    clus = community.best_partition(g, resolution = res)
+
     if _plot:
-        # Visualize graph
+        # Visualize graph - TO-DO: color by clusters
         plt.figure(figsize = (3,3))
         nx.draw(G, with_labels = True, node_size = 3, node_color = 'lightblue')
 
-    clus = community.best_partition(g)
-
     return clus
+
+def choose_clus_laplacian_epsilon_graph(
+    data, eps = 1, tol = 1e-6, return_eigvecs = False
+    ):
+
+    A = make_knn_graph_eps(data, epsilon = eps, return_adjacency_only = True)
+    D = np.diag(A.sum(axis = 0))
+    L = D - A
+    eigvals, eigvecs = np.linalg.eig(L)
+    n_clus = np.sum(eigvals < tol)
+
+    if return_eigvecs:
+        n_clus, eigvecs
+
+    return n_clus
+
+def choose_clus_laplacian_knn(
+    data, k_neighbors = 10, tol = 1e-6, return_all = False
+    ):
+    """
+    Returns the optimal number of clusters to use using spectral clustering.
+    It uses a kNN graph as an approximation of the data manifold.
+    By definition, the number of disjoint vertex sets will be equal to the
+    number of zero eigenvalues, i.e. the dimension of the eigenspace corresponding
+    to the zero eigenvalue of the graph Laplacian.
+
+    Params
+    ------
+    data (np.ndarray)
+        Data to construct the kNN graph from.
+
+    k_neighbors (int, default = 10)
+        Number of neighbors to build the kNN graph.
+
+    tol (float, default = 1e-6)
+        Upper bound to deem an eigenvalue as a zero eigenvalue.
+        I.e. any eigval λ < tol, will be set to zero.
+
+    Returns
+    -------
+    n_clus (int)
+        Number of eigenvalues below tol.
+
+    A, eigvecs (optional)
+        Adjacency matrix and eigenvectors of graph laplacian.
+    """
+    A = kneighbors_graph(
+        data, k_neighbors, mode = 'connectivity', p = 2, include_self = True,
+        n_jobs = -1
+    ).toarray()
+
+    D = np.diag(A.sum(axis = 0))
+    L = D - A
+    eigvals, eigvecs = np.linalg.eig(L)
+    n_clus = np.sum(eigvals < tol)
+
+    if return_all:
+        return n_clus, eigvecs,
+
+    return n_clus
 
 def get_knn_graph_louvain(data, k = 4, verbose =True):
     """
