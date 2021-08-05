@@ -519,7 +519,7 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
         batch = batch.repeat_interleave(self.n_genes)
 
         #Convert x to graph embeddings
-        embedding_matrix = self.embedding(torch.arange(self.n_genes))
+        embedding_matrix = self.embedding(torch.arange(self.n_genes, device = self.device))
 
 		# Scale embeddings by the mRNA counts
         x = x.T*embedding_matrix
