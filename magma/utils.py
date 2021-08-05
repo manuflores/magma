@@ -218,6 +218,7 @@ def supervised_trainer_gcn(
                 running_loss = 0.0
 
         # VALIDATION LOOP
+        model.eval()
         with torch.no_grad():
             validation_loss = []
             val_accuracy = []
