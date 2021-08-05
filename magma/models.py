@@ -535,7 +535,7 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
 
         # Forward pass through conv layers
         for ix, conv_layer in enumerate(self.conv_encoder):
-            x = conv_layer(x.float(), edge_index)
+            x = conv_layer(x.float(), edge_ix)
             x = self.activation_func_conv(x)
             x, edge_ix, _, batch, top_ixs, top_att_wts = self.sag_pool_layers[ix](
                 x, edge_ix, batch = batch
