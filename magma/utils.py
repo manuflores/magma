@@ -442,15 +442,16 @@ def supervised_trainer(
         # TRAINING LOOP
         for ix, (data, y_true) in enumerate(tqdm.tqdm(train_loader)):
 
-            input_tensor = data.view(batch_size, -1).float()
+            if len(data.shape)<4:
+                data = data.view(batch_size, -1).float()
 
             if cuda:
-                input_tensor = input_tensor.cuda(device = device)
+                data = data.cuda(device = device)
                 y_true = y_true.cuda(device = device)
 
             train_loss, train_acc = train_fn(
                 model,
-                input_tensor,
+                data,
                 y_true,
                 criterion,
                 optimizer,
@@ -480,14 +481,15 @@ def supervised_trainer(
 
             for i, (data, y_true) in enumerate(tqdm.tqdm(val_loader)):
 
-                input_tensor = data.view(batch_size, -1).float()
+                if len(data.shape)<4:
+                    input_tensor = data.view(batch_size, -1).float()
 
                 if cuda:
-                    input_tensor = input_tensor.cuda(device = device)
+                    data = data.cuda(device = device)
                     y_true = y_true.cuda(device = device)
 
                 val_loss, val_acc = validation_supervised(
-                    model, input_tensor, y_true, criterion, multiclass, n_classes
+                    model, data, y_true, criterion, multiclass, n_classes
                     )
 
                 validation_loss.append(val_loss)
@@ -3401,3 +3403,66 @@ def run_gmm(data, n_clus = 5):
     labels = clus_object.predict(data)
     bic = clus_object.bic(data)
     return labels, clus_object, bic
+
+
+
+def load_nsaid_names():
+    classification = {
+        "salicylates": ["aspirin", "diflunisal", "salsalate"],
+        "propionic acid derivatives": [
+            "ibuprofen",
+            "dexibuprofen",
+            "naproxen",
+            "fenoprofen",
+            "ketoprofen",
+            "dexketoprofen",
+            "flurbiprofen",
+            "oxaprozin",
+            "loxoprofen",
+            "pelubiprofen",
+            "zaltoprofen"
+        ],
+        "acetic acid derivatives":[
+            "indomethacin",
+            "tolmetin",
+            "sulindac",
+            "etodolac",
+            "ketorolac",
+            "diclofenac",
+            "aceclofenac",
+            "bromfenac",
+            "nabumetone",
+        ],
+        "oxicams": # enolic acid derivatives
+            [
+                "piroxicam",
+                "meloxicam",
+                "tenoxicam",
+                "droxicam",
+                "lornoxicam",
+                "isoxicam",
+                "phenylbutazone" # bute
+            ],
+        "fenamates": #anthranilic acid derivatives,
+        # anthranlic acid is an nitrogen isostere of salycilate
+            [
+                "mefenamic acid",
+                "meclofenamic acid",
+                "flufenamic acid",
+                "tolfenamic acid"
+            ],
+        "selective cox-2 inhibitors": # coxibs
+        # have lower risk of gastro bleeding
+            [
+                "celecoxib",
+                "rofecoxib",
+                "valdecoxib", # withdrawn from market
+                "parecoxib", # FDA withdrawn
+                "lumiracoxib",
+                "etoricoxib", # not FDA approved
+                "firoxocib" # used in dogs /horses
+            ],
+        "sulfonanilides":
+            ["nimesulide"],
+        "others":["clonixin", "licofelone", "harpagide"]
+    }
