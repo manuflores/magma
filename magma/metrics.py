@@ -42,6 +42,15 @@ def generalized_distance_matrix(X,Y):
         # Set all values along diagonal to zero
         D[di] = 0
 
+    # Check for small negative values
+    mask = D < 0
+    if D[mask].size > 0:
+        tol_neg = 1e-5
+        ix_neg = np.where(mask)
+        reset_vals = D[ix_neg]*-1 # flip sign
+        assert np.all(reset_vals < tol_neg), "There are negative values in the distance matrix."
+        D[ix_neg] =reset_vals
+
     return np.sqrt(D)
 
 def generalized_distance_matrix_torch(X,Y):
@@ -65,8 +74,8 @@ def generalized_distance_matrix_torch(X,Y):
     assert k_x == k_y, 'Number of cols of data X is %d and of Y is %d'%(k_x, k_y) # dimensionality of vector spaces must be equal
 
 
-    diag_x = torch.zeros((n_x, 1))
-    diag_y = torch.zeros((1, n_y))
+    diag_x = torch.zeros((n_x, 1)).to(dev)
+    diag_y = torch.zeros((1, n_y)).to(dev)
 
     for i in range(n_x):
         diag_x[i] = torch.dot(X[i], X[i])
@@ -257,16 +266,16 @@ def get_clus_metrics(y_pred, y_true):
     Designed to work for cases where ground truth is known
     or a comparison between sets is amenable.
     """
-    nmi = metrics.normalized_mutual_info_score(
+    nmi = normalized_mutual_info_score(
         y_true, y_pred
     )
 
-    ari = metrics.adjusted_rand_score(
+    ari = adjusted_rand_score(
         y_true, y_pred
     )
 
-    cm = sc.confusion_matrix(y_pred, y_true)
-    pur = sc.purity(cm)
+    cm = confusion_matrix(y_pred, y_true)
+    pur = purity(cm)
 
     print('NMI: %.2f'%nmi)
     print('Adjusted Rand Index: %.2f'%ari)
