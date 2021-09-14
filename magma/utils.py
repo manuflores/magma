@@ -1197,6 +1197,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
         if self.cuda:
             input_tensor = input_tensor.cuda()
             y_true = y_true.cuda()
+            y_regressor = y_regressor.cuda()
 
         # Make batch of molecular graphs
         molecule_batch = Batch.from_data_list(
@@ -1335,6 +1336,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
         if self.cuda:
             input_tensor = input_tensor.cuda()
             y_true = y_true.cuda()
+            y_regressor = y_regressor.cuda()
 
         # Make batch of molecular graphs
         molecule_batch = Batch.from_data_list(
