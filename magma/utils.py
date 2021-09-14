@@ -1187,262 +1187,262 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
             extra_head= extra_head
         )
 
-        def train_step(self, input_tensor, y_true, y_regressor = None):
-            """
-            The logic is get embeddings, and log losses depending on model complexity.
-            """
+    def train_step(self, input_tensor, y_true, y_regressor = None):
+        """
+        The logic is get embeddings, and log losses depending on model complexity.
+        """
 
-            self.model.zero_grad()
+        self.model.zero_grad()
 
-            if self.cuda:
-                input_tensor = input_tensor.cuda()
-                y_true = y_true.cuda()
+        if self.cuda:
+            input_tensor = input_tensor.cuda()
+            y_true = y_true.cuda()
 
-            # Make batch of molecular graphs
-            molecule_batch = Batch.from_data_list(
-                get_drug_batch(
-                    y_true,
-                    self.name_to_mol,
-                    self.ix_to_name,
-                    cuda = self.cuda
-                )
+        # Make batch of molecular graphs
+        molecule_batch = Batch.from_data_list(
+            get_drug_batch(
+                y_true,
+                self.name_to_mol,
+                self.ix_to_name,
+                cuda = self.cuda
             )
+        )
 
-            # Compute cell and molecule embeddings
-            cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
-            mol_embedding = self.model.encode_molecule(molecule_batch)
+        # Compute cell and molecule embeddings
+        cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
+        mol_embedding = self.model.encode_molecule(molecule_batch)
 
-            if self.contrastive:
-                cl_loss, train_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
+        if self.contrastive:
+            cl_loss, train_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
 
-                if not self.metric and not self.extra_head:
-                    cl_loss.backward()
-                    self.optimizer.step()
-
-                    results_dict = {
-                        'train_loss': {
-                            'contrastive_loss': cl_loss.item(),
-                            'metric_learning_loss': None,
-                            'regressor_loss':None
-                        },
-                        'train_acc': train_acc
-                    }
-
-                    return results_dict
-
-                elif not self.metric and self.extra_head:
-                    #cl_loss.backward()
-                    reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
-                    loss = cl_loss + reg_loss
-                    loss.backward()
-
-                    self.optimizer.step()
-
-                    results_dict = {
-                        'train_loss': {
-                            'contrastive_loss': cl_loss.item(),
-                            'metric_learning_loss': None,
-                            'regressor_loss':reg_loss.item()
-                        },
-                        'train_acc': train_acc
-                    }
-
-                    return results_dict
-                else:
-                    pass
-
-            if self.metric:
-                metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
-
-                if not self.contrastive and not self.extra_head:
-                    metric_learning_loss.backward()
-                    self.optimizer.step()
-
-                    results_dict = {
-                        'train_loss': {
-                            'contrastive_loss': None,
-                            'metric_learning_loss': met_loss.item(),
-                            'regressor_loss':None
-                        },
-                        'train_acc': None
-                    }
-
-                    return results_dict
-
-                elif not self.contrastive and self.extra_head:
-                    #metric_learning_loss.backward()
-                    reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
-                    loss = metric_learning_loss + reg_loss
-                    loss.backward()
-
-                    self.optimizer.step()
-
-                    results_dict = {
-                        'train_loss': {
-                            'contrastive_loss': None,
-                            'metric_learning_loss': met_loss.item(),
-                            'regressor_loss':reg_loss.item()
-                        },
-                        'train_acc': None
-                    }
-
-                    return results_dict
-
-                else:
-                    pass
-
-
-            if self.extra_head and self.contrastive and self.metric:
-                reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
-                loss = cl_loss + metric_learning_loss + reg_loss
-                loss.backward()
+            if not self.metric and not self.extra_head:
+                cl_loss.backward()
                 self.optimizer.step()
 
                 results_dict = {
-                    "train_loss": {
-                        "contrastive_loss": cl_loss.item(),
-                        "metric_learning_loss": metric_learning_loss.item(),
-                        "regressor_loss":reg_loss.item()
+                    'train_loss': {
+                        'contrastive_loss': cl_loss.item(),
+                        'metric_learning_loss': None,
+                        'regressor_loss':None
                     },
-                    "train_acc": train_acc,
+                    'train_acc': train_acc
                 }
+
                 return results_dict
 
-            #if self.contrastive and self.metric:
-            # both contrastive and metric learning active and no extra regressor
-            loss = cl_loss + metric_learning_loss
+            elif not self.metric and self.extra_head:
+                #cl_loss.backward()
+                reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+                loss = cl_loss + reg_loss
+                loss.backward()
 
+                self.optimizer.step()
+
+                results_dict = {
+                    'train_loss': {
+                        'contrastive_loss': cl_loss.item(),
+                        'metric_learning_loss': None,
+                        'regressor_loss':reg_loss.item()
+                    },
+                    'train_acc': train_acc
+                }
+
+                return results_dict
+            else:
+                pass
+
+        if self.metric:
+            metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
+
+            if not self.contrastive and not self.extra_head:
+                metric_learning_loss.backward()
+                self.optimizer.step()
+
+                results_dict = {
+                    'train_loss': {
+                        'contrastive_loss': None,
+                        'metric_learning_loss': met_loss.item(),
+                        'regressor_loss':None
+                    },
+                    'train_acc': None
+                }
+
+                return results_dict
+
+            elif not self.contrastive and self.extra_head:
+                #metric_learning_loss.backward()
+                reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+                loss = metric_learning_loss + reg_loss
+                loss.backward()
+
+                self.optimizer.step()
+
+                results_dict = {
+                    'train_loss': {
+                        'contrastive_loss': None,
+                        'metric_learning_loss': met_loss.item(),
+                        'regressor_loss':reg_loss.item()
+                    },
+                    'train_acc': None
+                }
+
+                return results_dict
+
+            else:
+                pass
+
+
+        if self.extra_head and self.contrastive and self.metric:
+            reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+            loss = cl_loss + metric_learning_loss + reg_loss
             loss.backward()
             self.optimizer.step()
+
             results_dict = {
                 "train_loss": {
                     "contrastive_loss": cl_loss.item(),
                     "metric_learning_loss": metric_learning_loss.item(),
-                    "regressor_loss":None
+                    "regressor_loss":reg_loss.item()
                 },
                 "train_acc": train_acc,
             }
-
             return results_dict
 
+        #if self.contrastive and self.metric:
+        # both contrastive and metric learning active and no extra regressor
+        loss = cl_loss + metric_learning_loss
 
-        @torch.no_grad()
-        def val_step(self, input_tensor, y_true, y_regressor =None):
-            """
-            """
-            #self.model.eval()
+        loss.backward()
+        self.optimizer.step()
+        results_dict = {
+            "train_loss": {
+                "contrastive_loss": cl_loss.item(),
+                "metric_learning_loss": metric_learning_loss.item(),
+                "regressor_loss":None
+            },
+            "train_acc": train_acc,
+        }
 
-            if self.cuda:
-                input_tensor = input_tensor.cuda()
-                y_true = y_true.cuda()
+        return results_dict
 
-            # Make batch of molecular graphs
-            molecule_batch = Batch.from_data_list(
-                get_drug_batch(
-                    y_true,
-                    self.name_to_mol,
-                    self.ix_to_name,
-                    cuda = self.cuda
-                )
+
+    @torch.no_grad()
+    def val_step(self, input_tensor, y_true, y_regressor =None):
+        """
+        """
+        #self.model.eval()
+
+        if self.cuda:
+            input_tensor = input_tensor.cuda()
+            y_true = y_true.cuda()
+
+        # Make batch of molecular graphs
+        molecule_batch = Batch.from_data_list(
+            get_drug_batch(
+                y_true,
+                self.name_to_mol,
+                self.ix_to_name,
+                cuda = self.cuda
             )
+        )
 
-            # Compute cell and molecule embeddings
-            cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
-            mol_embedding = self.model.encode_molecule(molecule_batch)
+        # Compute cell and molecule embeddings
+        cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
+        mol_embedding = self.model.encode_molecule(molecule_batch)
 
-            if self.contrastive:
-                cl_loss, test_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
+        if self.contrastive:
+            cl_loss, test_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
 
-                #contrastive + no metric + no extra head
-                if not self.metric and not self.extra_head:
-
-                    results_dict = {
-                        'test_loss': {
-                            'contrastive_loss': cl_loss.item(),
-                            'metric_learning_loss': None,
-                            "regressor_loss": None,
-                            },
-                        'test_acc': test_acc
-                    }
-                    return results_dict
-
-                #contrastive + no metric + extra head
-                elif not self.metric and self.extra_head:
-                    reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
-
-                    self.optimizer.step()
-
-                    results_dict = {
-                        'test_loss': {
-                            'contrastive_loss': cl_loss.item(),
-                            'metric_learning_loss': None,
-                            'regressor_loss':reg_loss.item()
-                        },
-                        'test_acc': train_acc
-                    }
-
-                    return results_dict
-
-
-            if self.metric:
-
-                metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
-
-                #no contrastive +  metric + no extra head
-                if not self.contrastive and not self.extra_head:
-                    results_dict = {
-                        'test_loss': {
-                            'contrastive_loss': None,
-                            'metric_learning_loss': met_loss.item(),
-                            "regressor_loss":None
-                        },
-                        'test_acc': None
-                    }
-                    return results_dict
-
-                #no contrastive +  metric + extra head
-                elif not self.contrastive and self.extra_head:
-                    reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
-                    results_dict={
-                        'test_loss': {
-                            'contrastive_loss': None,
-                            'metric_learning_loss': met_loss.item(),
-                            "regressor_loss":reg_loss.item()
-                        },
-                        'test_acc': None
-                    }
-
-            # contrastive +  metric + extra head
-            if self.extra_head and self.contrastive and self.metric:
-                reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
-                loss = cl_loss + metric_learning_loss + reg_loss
-                loss.backward()
-                self.optimizer.step()
+            #contrastive + no metric + no extra head
+            if not self.metric and not self.extra_head:
 
                 results_dict = {
-                    "train_loss": {
-                        "contrastive_loss": cl_loss.item(),
-                        "metric_learning_loss": metric_learning_loss.item(),
-                        "regressor_loss":reg_loss.item()
-                    },
-                    "test_acc": test_acc,
+                    'test_loss': {
+                        'contrastive_loss': cl_loss.item(),
+                        'metric_learning_loss': None,
+                        "regressor_loss": None,
+                        },
+                    'test_acc': test_acc
                 }
                 return results_dict
 
-            #if self.contrastive and self.metric:
-            # else: both contrastive and metric learning active
-            loss = cl_loss + metric_learning_loss
+            #contrastive + no metric + extra head
+            elif not self.metric and self.extra_head:
+                reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+
+                self.optimizer.step()
+
+                results_dict = {
+                    'test_loss': {
+                        'contrastive_loss': cl_loss.item(),
+                        'metric_learning_loss': None,
+                        'regressor_loss':reg_loss.item()
+                    },
+                    'test_acc': train_acc
+                }
+
+                return results_dict
+
+
+        if self.metric:
+
+            metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
+
+            #no contrastive +  metric + no extra head
+            if not self.contrastive and not self.extra_head:
+                results_dict = {
+                    'test_loss': {
+                        'contrastive_loss': None,
+                        'metric_learning_loss': met_loss.item(),
+                        "regressor_loss":None
+                    },
+                    'test_acc': None
+                }
+                return results_dict
+
+            #no contrastive +  metric + extra head
+            elif not self.contrastive and self.extra_head:
+                reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+                results_dict={
+                    'test_loss': {
+                        'contrastive_loss': None,
+                        'metric_learning_loss': met_loss.item(),
+                        "regressor_loss":reg_loss.item()
+                    },
+                    'test_acc': None
+                }
+
+        # contrastive +  metric + extra head
+        if self.extra_head and self.contrastive and self.metric:
+            reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+            loss = cl_loss + metric_learning_loss + reg_loss
+            loss.backward()
+            self.optimizer.step()
 
             results_dict = {
-                "test_loss": {
+                "train_loss": {
                     "contrastive_loss": cl_loss.item(),
                     "metric_learning_loss": metric_learning_loss.item(),
-                    "regressor_loss":None
+                    "regressor_loss":reg_loss.item()
                 },
                 "test_acc": test_acc,
             }
-
             return results_dict
+
+        #if self.contrastive and self.metric:
+        # else: both contrastive and metric learning active
+        loss = cl_loss + metric_learning_loss
+
+        results_dict = {
+            "test_loss": {
+                "contrastive_loss": cl_loss.item(),
+                "metric_learning_loss": metric_learning_loss.item(),
+                "regressor_loss":None
+            },
+            "test_acc": test_acc,
+        }
+
+        return results_dict
 
     def train(self)-> Tuple[pd.DataFrame, pd.DataFrame]:
         """
