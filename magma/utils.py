@@ -707,7 +707,7 @@ def get_positive_negative_indices_batch(
         # the first and last index
         # this will cause the hinge loss to be the margin
         if label_flip_max_code and label_flip_min_code:
-            print('At least one label in the positive and negative is the same')
+            print('At least one label in the positive and negative are the same')
             pass
 
 
@@ -1269,7 +1269,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
 
                     return results_dict
 
-                elif not self.contrastive and not self.extra_head:
+                elif not self.contrastive and self.extra_head:
                     #metric_learning_loss.backward()
                     reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
                     loss = metric_learning_loss + reg_loss
@@ -1292,8 +1292,8 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
                     pass
 
 
-            if self.extra_head:
-                reg_loss = reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+            if self.extra_head and self.contrastive and self.metric:
+                reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
                 loss = cl_loss + metric_learning_loss + reg_loss
                 loss.backward()
                 self.optimizer.step()
@@ -1353,6 +1353,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
             if self.contrastive:
                 cl_loss, test_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
 
+                #contrastive + no metric + no extra head
                 if not self.metric and not self.extra_head:
 
                     results_dict = {
@@ -1365,6 +1366,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
                     }
                     return results_dict
 
+                #contrastive + no metric + extra head
                 elif not self.metric and self.extra_head:
                     reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
 
@@ -1386,6 +1388,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
 
                 metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
 
+                #no contrastive +  metric + no extra head
                 if not self.contrastive and not self.extra_head:
                     results_dict = {
                         'test_loss': {
@@ -1397,6 +1400,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
                     }
                     return results_dict
 
+                #no contrastive +  metric + extra head
                 elif not self.contrastive and self.extra_head:
                     reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
                     results_dict={
@@ -1408,8 +1412,9 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
                         'test_acc': None
                     }
 
-            if self.extra_head:
-                reg_loss = reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+            # contrastive +  metric + extra head
+            if self.extra_head and self.contrastive and self.metric:
+                reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
                 loss = cl_loss + metric_learning_loss + reg_loss
                 loss.backward()
                 self.optimizer.step()
