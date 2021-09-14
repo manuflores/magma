@@ -1190,8 +1190,8 @@ class JointEmbedding(nn.Module):
         self.logit_scale =nn.Parameter(torch.rand(1)*4)
 
         #Add extra module
-        if extra_head:
-            self.extra_head= supervised_model(head_dims)
+        #if extra_head:
+        #    self.extra_head= supervised_model(head_dims)
 
     def encode_molecule(self, molecule_batch):
         molecule_embedding = self.molecule_encoder.project(
@@ -1217,9 +1217,9 @@ class JointEmbedding(nn.Module):
 
         return logits
 
-	def head_fwd(self, embedding):
-		out = self.extra_head(embedding)
-		return out
+    def head_fwd(self, embedding):
+        out = self.extra_head(embedding)
+        return out
 
 
 def cov_mat(X:torch.Tensor, Y:torch.Tensor = None)->torch.Tensor:
