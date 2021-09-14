@@ -187,7 +187,7 @@ class GNNBase(nn.Module):
         return x
 
     @torch.no_grad()
-    def project_to_latent_space(self, data_loader, n_feats, latent_dim):
+    def project_to_latent_space(self, data_loader, latent_dim):
         """
         Returns a generator to project dataset into latent space,
         i.e. last hidden layer.
@@ -436,6 +436,178 @@ class GraphAttentionNetwork(GNNBase):
         self.activation_func_linear = act_func_linear
 
 
+class GeneRegNet(GraphConvNetwork):
+    """
+    GNN for gene regulatory network without an embedding layer
+    as in Hierarchical Neural Gene Reg Net.
+    """
+    def __init__(
+        self,
+        dims_conv,
+        dims_lin,
+        model_type,
+		n_genes,
+        # n_embeddings,
+        # embedding_dim = 20,
+        sag_pooling_ratio = 0.5,
+        pooling = 'mean',
+        act_func_conv = torch.tanh,
+        act_func_lin = torch.tanh,
+        residual = True
+        ):
+        """
+        Note: All graph conv layers should have the same dimension in the residual
+        mode. Only the first input channels will be the same as the embedding_dim.
+
+        Params
+        ------
+        dims_conv (array-like)
+            dimensions of gnn layers
+
+        dims_lin (array-like)
+            list of input-output dimensions of linear layers.
+
+        model_type(str)
+            One of [`multiclass`, `binary`, `regression`]
+
+        sag_pooling_ratio (float, default = 0.5)
+            Fraction of nodes to keep in every SAG pooling layer.
+
+        pooling (str, default = mean)
+            Method for generating graph embedding from node embeddings.
+            One of [`mean`, `max`, `sum`]
+
+        act_func_conv (torch act function, default = torch.tanh)
+            Activation function for conv layers
+
+        act_func_lin (torch act function, default = torch.tanh)
+            Activation func for linear layers.
+
+        residual (bool, default = True)
+        """
+        super(GeneRegNet,self).__init__(
+            dims_conv=dims_conv,
+            dims_lin=dims_lin,
+            model_type=model_type,
+            act_func_conv = act_func_conv,
+            act_func_linear = act_func_lin
+        )
+        self.device = try_gpu()
+
+        self.n_genes = n_genes
+        # self.embedding_dim = embedding_dim
+        # self.embedding = nn.Embedding(self.n_genes, embedding_dim)
+        self.residual = residual
+        self.dims_conv = dims_conv
+
+        # SAGPool layers have in_channels = out_channels of every GCN
+        self.sag_pool_layers = nn.ModuleList(
+            [
+                SAGPooling(in_channels = dim,ratio = sag_pooling_ratio)
+                for dim in dims_conv[1:]
+            ]
+        )
+
+        if pooling == 'mean':
+            self.global_pool = global_mean_pool
+        elif pooling == 'add':
+            self.global_pool = global_add_pool
+        elif pooling == 'max':
+            self.global_pool = global_max_pool
+
+    def project(
+        self,
+        data,
+        reg_hook_input = False,
+        reg_hook_conv = False,
+		return_top_ixs = False
+		):
+        """
+        Projects data up to last hidden layer.
+
+        Params
+        -------
+        data (torch_geometric.data.data.Data)
+            A graph in torch_geometric format. Composed of node_features `x`,
+            edge_indices, and edge_features.
+        """
+
+        #print('At least started')
+
+        x, edge_ix, batch = data.x, data.edge_index, data.batch
+
+        # Reshape dataset, for each node feature to be a vector of size n_genes
+        batch = batch.repeat_interleave(self.n_genes)
+        batch_size = x.shape[0]
+        x = x.reshape(batch_size*self.n_genes,1)
+        #x.shape = (batch_size, self.n_genes)
+
+        #Convert x to graph embeddings
+        # embedding_matrix = self.embedding(
+		# 	torch.arange(self.n_genes, device = self.device)
+		# )
+
+		# Scale embeddings by the mRNA counts for each cell in batch
+        #x = x.T*embedding_matrix
+        # x = torch.cat(
+        #     [x[i].view(-1,1)*embedding_matrix for i in range(x.shape[0])],
+        #     axis = 0
+        # )
+		#x.shape = (batch_size*self.n_genes, self.embedding_dim)
+
+        # In residual mode all GCN layers (but the first one)
+        # have the same dimensionality
+        if self.residual:
+            x_ = torch.zeros(self.dims_conv[1],device = self.device)
+
+        if return_top_ixs:
+            top_ixs_list = []
+            #top_ixs_dict = {}
+
+        # Forward pass through conv layers
+        for ix, conv_layer in enumerate(self.conv_encoder):
+            x = conv_layer(x.float(), edge_ix)
+            x = self.activation_func_conv(x)
+
+			# We could try using SAG only for pooling, without scaling
+			# i.e. ignoring the X_out = X*Z_mask, where Z_mask are the top att weights
+            x_out_, edge_ix, _, batch, top_ixs, top_att_wts = self.sag_pool_layers[ix](
+                x, edge_ix, batch = batch
+            )
+
+            x = x[top_ixs]
+
+			#assert graph.x[topk_ixs] * topk_att_wts.reshape(-1,1) == x
+			# A_new = Adj[topk_ixs, topk_ixs]
+
+            if return_top_ixs:
+                top_ixs_list.append((top_ixs, top_att_wts))
+
+            # Add intermediate graph embedding (readout)
+            if self.residual:
+                x_ = x_ + self.global_pool(x, batch)
+
+		# Residual mode just renames variable,
+		# else, pools node embeddings to graph embedding
+        if self.residual:
+            x_out = x_
+        else:
+            x_out = self.global_pool(x, batch)
+
+        # Project to last layer
+        if self.multiple_linear:
+            for dense_layer in self.linear_layers:
+                x_out = dense_layer(x_out)
+                if self.activation_func_linear is not None:
+                    x_out = self.activation_func_linear(x_out)
+
+        if return_top_ixs:
+            return x_out, top_ixs_list
+
+
+        return x_out
+
+
 class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
     """		 _______________________________
             |				    |           |
@@ -518,17 +690,20 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
         x, edge_ix, batch = data.x, data.edge_index, data.batch
         batch = batch.repeat_interleave(self.n_genes)
 
+		#x.shape = (batch_size, self.n_genes)
+
         #Convert x to graph embeddings
         embedding_matrix = self.embedding(
 			torch.arange(self.n_genes, device = self.device)
 		)
 
-		# Scale embeddings by the mRNA counts
+		# Scale embeddings by the mRNA counts for each cell in batch
         #x = x.T*embedding_matrix
         x = torch.cat(
             [x[i].view(-1,1)*embedding_matrix for i in range(x.shape[0])],
             axis = 0
         )
+		#x.shape = (batch_size*self.n_genes, self.embedding_dim)
 
         # In residual mode all GCN layers (but the first one)
         # have the same dimensionality
@@ -551,7 +726,7 @@ class HierarchicalNeuralGeneRegNet(GraphConvNetwork):
 			# A_new = Adj[topk_ixs, topk_ixs]
 
             if return_top_ixs:
-                top_ixs_list.append(top_ixs, top_att_wts)
+                top_ixs_list.append((top_ixs, top_att_wts))
 
             # Add intermediate graph embedding (readout)
             if self.residual:
@@ -1002,7 +1177,7 @@ class JointEmbedding(nn.Module):
     """
     Joint embedding using contrastive learning training.
     """
-    def __init__(self, mol_encoder, cell_encoder):
+    def __init__(self, mol_encoder, cell_encoder, extra_head=False, head_dims=None):
         super(JointEmbedding, self).__init__()
 
         mol_encoder = copy.deepcopy(mol_encoder)
@@ -1013,6 +1188,10 @@ class JointEmbedding(nn.Module):
 
         # Learn temperature parameter
         self.logit_scale =nn.Parameter(torch.rand(1)*4)
+
+        #Add extra module
+        if extra_head:
+            self.extra_head= supervised_model(head_dims)
 
     def encode_molecule(self, molecule_batch):
         molecule_embedding = self.molecule_encoder.project(
@@ -1037,6 +1216,10 @@ class JointEmbedding(nn.Module):
         logits = logit_scale * mol_embedding@cell_embedding.t()
 
         return logits
+
+	def head_fwd(self, embedding):
+		out = self.extra_head(embedding)
+		return out
 
 
 def cov_mat(X:torch.Tensor, Y:torch.Tensor = None)->torch.Tensor:
