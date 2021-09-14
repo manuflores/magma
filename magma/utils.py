@@ -901,7 +901,7 @@ class JointEmbeddingTrainer:
 
         return metric_learning_loss
 
-    def mol_regressor_loop(self, mol_embedding, y_regressor, alpha = 1e-3):
+    def mol_regressor_loop(self, mol_embedding, y_regressor, alpha = 1):
         out = self.model.extra_head(mol_embedding)
         reg_loss = self.regressor_loss(y_regressor, out)
         return alpha*reg_loss
