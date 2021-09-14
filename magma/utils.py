@@ -1150,7 +1150,25 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
     mapping {'drug_1': 0, ..., 'drug_n': (n-1)}.
 
     """
-    def __init__(self):
+    def __init__(
+        self,
+        model,
+        adata,
+        df_drugs,
+        batch_size,
+        train_loader,
+        val_loader,
+        lr:float = 1e-5,
+        n_epochs:int = 20,
+        metric_learning:bool = True,
+        contrastive_learning:bool = True,
+        p_norm_metric:int = 2,
+        margin:float = 3.,
+        model_name:str = None,
+        model_dir:str = None,
+        extra_head= True
+
+    ):
         super().__init__(
             model,
             adata,
@@ -1158,19 +1176,15 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
             batch_size,
             train_loader,
             val_loader,
-            #index_dict_train:dict,
-            #index_dict_test:dict,
-            #name_to_mol:dict,
-            #ix_to_name:dict,
-            lr:float = 1e-5,
-            n_epochs:int = 20,
-            metric_learning:bool = True,
-            contrastive_learning:bool = True,
-            p_norm_metric:int = 2,
-            margin:float = 3.,
-            model_name:str = None,
-            model_dir:str = None,
-            extra_head= True
+            lr = lr,
+            n_epochs = n_epochs,
+            metric_learning = metric_learning,
+            contrastive_learning = contrastive_learning,
+            p_norm_metric = p_norm_metric,
+            margin = margin,
+            model_name = model_name,
+            model_dir = model_dir,
+            extra_head= extra_head
         )
 
         def train_step(self, input_tensor, y_true, y_regressor = None):
