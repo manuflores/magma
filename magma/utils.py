@@ -1372,8 +1372,6 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
             elif not self.metric and self.extra_head:
                 reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
 
-                self.optimizer.step()
-
                 results_dict = {
                     'test_loss': {
                         'contrastive_loss': cl_loss.item(),
@@ -1387,7 +1385,6 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
 
 
         if self.metric:
-
             metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
 
             #no contrastive +  metric + no extra head
@@ -1418,9 +1415,6 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
         if self.extra_head and self.contrastive and self.metric:
             reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
             loss = cl_loss + metric_learning_loss + reg_loss
-            loss.backward()
-            self.optimizer.step()
-
             results_dict = {
                 "train_loss": {
                     "contrastive_loss": cl_loss.item(),
