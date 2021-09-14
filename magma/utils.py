@@ -763,6 +763,7 @@ class JointEmbeddingTrainer:
         margin:float = 3.,
         model_name:str = None,
         model_dir:str = None,
+        extra_head= True
         ):
         """
         Params
@@ -820,6 +821,10 @@ class JointEmbeddingTrainer:
         self.index_dict_test = index_dict_test
         self.name_to_mol = dict(df_drugs[['drug_name', 'mol']].values)
         self.ix_to_name = dict(adata.obs[['sample_code', 'drug_name']].values)
+
+        self.extra_head = extra_head
+        if self.extra_head:
+            self.regressor_loss = nn.MSELoss()
 
 
     def contrastive_learning_loop(self, mol_embedding, cell_embedding):
@@ -896,8 +901,12 @@ class JointEmbeddingTrainer:
 
         return metric_learning_loss
 
+    def mol_regressor_loop(self, mol_embedding, y_regressor, alpha = 1e-3):
+        out = self.model.extra_head(mol_embedding)
+        reg_loss = self.regressor_loss(y_regressor, out)
+        return alpha*reg_loss
 
-    def train_step(self, input_tensor, y_true):
+    def train_step(self, input_tensor, y_true, y_regressor = None):
         "A single training step for a minibatch."
 
         self.model.zero_grad()
@@ -1083,6 +1092,406 @@ class JointEmbeddingTrainer:
 
             print('Val contrastive loss: %.3f '%(mean_cl_ if mean_cl_ is not np.nan else 0.0))
             print('Val metric learning loss: %.3f '%(mean_ml_ if mean_ml_ is not np.nan else 0.0))
+            print('Validation accuracy: %.3f'%(mean_acc_*100 if mean_acc_ is not np.nan else 0.0))
+            print('\n')
+
+            # SAVE MODEL
+            if self.model_dir is not None:
+                if not os.path.exists(self.model_dir):
+                    os.mkdir(self.model_dir)
+
+                if self.model_name is not None:
+                    torch.save(
+                        self.model.state_dict(),
+                        os.path.join(self.model_dir, self.model_name + '_' + str(epoch +1) + '.pt')
+                    )
+                else:
+                    torch.save(
+                        self.model.state_dict(),
+                        os.path.join(self.model_dir, 'model' + '_' + str(epoch +1) + '.pt')
+                    )
+
+        # Summarize results
+        df_train_logs = pd.concat([df_train_loss, df_train_acc], axis = 1)
+        df_test_logs = pd.concat([df_test_loss, df_test_acc], axis = 1)
+
+        epoch_indicator_train = np.concatenate(
+            [np.repeat(epoch, self.n_train_batches) for epoch in np.arange(1, self.n_epochs+1)]
+        )
+
+        epoch_indicator_test = np.concatenate(
+            [np.repeat(epoch, self.n_test_batches) for epoch in np.arange(1, self.n_epochs +1)]
+        )
+
+        df_train_logs['epoch'] = epoch_indicator_train
+        df_test_logs['epoch'] = epoch_indicator_test
+
+        # Set logs as attributes
+        self.train_logs = df_train_logs
+        self.test_logs = df_test_logs
+
+        df_train_agg = df_train_logs.groupby('epoch').mean().reset_index()
+        df_test_agg = df_test_logs.groupby('epoch').mean().reset_index()
+
+        self.best_model_ix = int(df_test_agg.test_acc.argmax())
+
+        return df_train_logs, df_test_logs #df_train_agg, df_test_agg
+
+
+class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
+    """
+    Class for training the joint embedding model using an auxiliary regressor task.
+
+    Notes
+    -----
+    Assumes both adata and df_drugs have coinciding names in the column
+    `drug_name`. Also assumes that adata has a column called `sample_codes`,
+    that are the numerical encoding of each drug name, i.e. that there's a
+    mapping {'drug_1': 0, ..., 'drug_n': (n-1)}.
+
+    """
+    def __init__(self):
+        super().__init__(
+            model,
+            adata,
+            df_drugs,
+            batch_size,
+            train_loader,
+            val_loader,
+            #index_dict_train:dict,
+            #index_dict_test:dict,
+            #name_to_mol:dict,
+            #ix_to_name:dict,
+            lr:float = 1e-5,
+            n_epochs:int = 20,
+            metric_learning:bool = True,
+            contrastive_learning:bool = True,
+            p_norm_metric:int = 2,
+            margin:float = 3.,
+            model_name:str = None,
+            model_dir:str = None,
+            extra_head= True
+        )
+
+        def train_step(self, input_tensor, y_true, y_regressor = None):
+            """
+            The logic is get embeddings, and log losses depending on model complexity.
+            """
+
+            self.model.zero_grad()
+
+            if self.cuda:
+                input_tensor = input_tensor.cuda()
+                y_true = y_true.cuda()
+
+            # Make batch of molecular graphs
+            molecule_batch = Batch.from_data_list(
+                get_drug_batch(
+                    y_true,
+                    self.name_to_mol,
+                    self.ix_to_name,
+                    cuda = self.cuda
+                )
+            )
+
+            # Compute cell and molecule embeddings
+            cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
+            mol_embedding = self.model.encode_molecule(molecule_batch)
+
+            if self.contrastive:
+                cl_loss, train_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
+
+                if not self.metric and not self.extra_head:
+                    cl_loss.backward()
+                    self.optimizer.step()
+
+                    results_dict = {
+                        'train_loss': {
+                            'contrastive_loss': cl_loss.item(),
+                            'metric_learning_loss': None,
+                            'regressor_loss':None
+                        },
+                        'train_acc': train_acc
+                    }
+
+                    return results_dict
+
+                elif not self.metric and self.extra_head:
+                    #cl_loss.backward()
+                    reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+                    loss = cl_loss + reg_loss
+                    loss.backward()
+
+                    self.optimizer.step()
+
+                    results_dict = {
+                        'train_loss': {
+                            'contrastive_loss': cl_loss.item(),
+                            'metric_learning_loss': None,
+                            'regressor_loss':reg_loss.item()
+                        },
+                        'train_acc': train_acc
+                    }
+
+                    return results_dict
+                else:
+                    pass
+
+            if self.metric:
+                metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
+
+                if not self.contrastive and not self.extra_head:
+                    metric_learning_loss.backward()
+                    self.optimizer.step()
+
+                    results_dict = {
+                        'train_loss': {
+                            'contrastive_loss': None,
+                            'metric_learning_loss': met_loss.item(),
+                            'regressor_loss':None
+                        },
+                        'train_acc': None
+                    }
+
+                    return results_dict
+
+                elif not self.contrastive and not self.extra_head:
+                    #metric_learning_loss.backward()
+                    reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+                    loss = metric_learning_loss + reg_loss
+                    loss.backward()
+
+                    self.optimizer.step()
+
+                    results_dict = {
+                        'train_loss': {
+                            'contrastive_loss': None,
+                            'metric_learning_loss': met_loss.item(),
+                            'regressor_loss':reg_loss.item()
+                        },
+                        'train_acc': None
+                    }
+
+                    return results_dict
+
+                else:
+                    pass
+
+
+            if self.extra_head:
+                reg_loss = reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+                loss = cl_loss + metric_learning_loss + reg_loss
+                loss.backward()
+                self.optimizer.step()
+
+                results_dict = {
+                    "train_loss": {
+                        "contrastive_loss": cl_loss.item(),
+                        "metric_learning_loss": metric_learning_loss.item(),
+                        "regressor_loss":reg_loss.item()
+                    },
+                    "train_acc": train_acc,
+                }
+                return results_dict
+
+            #if self.contrastive and self.metric:
+            # both contrastive and metric learning active and no extra regressor
+            loss = cl_loss + metric_learning_loss
+
+            loss.backward()
+            self.optimizer.step()
+            results_dict = {
+                "train_loss": {
+                    "contrastive_loss": cl_loss.item(),
+                    "metric_learning_loss": metric_learning_loss.item(),
+                    "regressor_loss":None
+                },
+                "train_acc": train_acc,
+            }
+
+            return results_dict
+
+
+        @torch.no_grad()
+        def val_step(self, input_tensor, y_true, y_regressor =None):
+            """
+            """
+            #self.model.eval()
+
+            if self.cuda:
+                input_tensor = input_tensor.cuda()
+                y_true = y_true.cuda()
+
+            # Make batch of molecular graphs
+            molecule_batch = Batch.from_data_list(
+                get_drug_batch(
+                    y_true,
+                    self.name_to_mol,
+                    self.ix_to_name,
+                    cuda = self.cuda
+                )
+            )
+
+            # Compute cell and molecule embeddings
+            cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
+            mol_embedding = self.model.encode_molecule(molecule_batch)
+
+            if self.contrastive:
+                cl_loss, test_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
+
+                if not self.metric and not self.extra_head:
+
+                    results_dict = {
+                        'test_loss': {
+                            'contrastive_loss': cl_loss.item(),
+                            'metric_learning_loss': None,
+                            "regressor_loss": None,
+                            },
+                        'test_acc': test_acc
+                    }
+                    return results_dict
+
+                elif not self.metric and self.extra_head:
+                    reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+
+                    self.optimizer.step()
+
+                    results_dict = {
+                        'test_loss': {
+                            'contrastive_loss': cl_loss.item(),
+                            'metric_learning_loss': None,
+                            'regressor_loss':reg_loss.item()
+                        },
+                        'test_acc': train_acc
+                    }
+
+                    return results_dict
+
+
+            if self.metric:
+
+                metric_learning_loss = self.metric_learning_loop(y_true, cell_embedding, mol_embedding)
+
+                if not self.contrastive and not self.extra_head:
+                    results_dict = {
+                        'test_loss': {
+                            'contrastive_loss': None,
+                            'metric_learning_loss': met_loss.item(),
+                            "regressor_loss":None
+                        },
+                        'test_acc': None
+                    }
+                    return results_dict
+
+                elif not self.contrastive and self.extra_head:
+                    reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+                    results_dict={
+                        'test_loss': {
+                            'contrastive_loss': None,
+                            'metric_learning_loss': met_loss.item(),
+                            "regressor_loss":reg_loss.item()
+                        },
+                        'test_acc': None
+                    }
+
+            if self.extra_head:
+                reg_loss = reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
+                loss = cl_loss + metric_learning_loss + reg_loss
+                loss.backward()
+                self.optimizer.step()
+
+                results_dict = {
+                    "train_loss": {
+                        "contrastive_loss": cl_loss.item(),
+                        "metric_learning_loss": metric_learning_loss.item(),
+                        "regressor_loss":reg_loss.item()
+                    },
+                    "test_acc": test_acc,
+                }
+                return results_dict
+
+            #if self.contrastive and self.metric:
+            # else: both contrastive and metric learning active
+            loss = cl_loss + metric_learning_loss
+
+            results_dict = {
+                "test_loss": {
+                    "contrastive_loss": cl_loss.item(),
+                    "metric_learning_loss": metric_learning_loss.item(),
+                    "regressor_loss":None
+                },
+                "test_acc": test_acc,
+            }
+
+            return results_dict
+
+    def train(self)-> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Trains the joint embedding model for n_epochs.
+        Returns the train and validation loss and accuracy as dataframes.
+        """
+        df_train_loss, df_train_acc = pd.DataFrame(), pd.DataFrame()
+        df_test_loss, df_test_acc = pd.DataFrame(), pd.DataFrame()
+
+        #df_train_logs, df_test_logs = pd.DataFrame(), pd.DataFrame()
+
+        for epoch in np.arange(self.n_epochs):
+            self.model.train()
+            # Loop through minibatches from training dataloader
+            for ix, (input_tensor, y_true, y_regressor) in tqdm.tqdm(enumerate(self.train_loader)):
+
+                # Train step
+                results_dict_train = self.train_step(input_tensor, y_true, y_regressor)
+
+                df_train_loss = df_train_loss.append(
+                    results_dict_train['train_loss'], ignore_index = True
+                )
+
+                df_train_acc = df_train_acc.append(
+                    {'train_acc': results_dict_train['train_acc']}, ignore_index = True
+                )
+
+            #df_train_loss['epoch'] = epoch + 1
+            #df_train_acc['epoch'] = epoch +1
+
+            mean_cl = df_train_loss.contrastive_loss.mean()
+            mean_ml = df_train_loss.metric_learning_loss.mean()
+            mean_mse = df_train_loss.regressor_loss.mean()
+            mean_acc = df_train_acc.train_acc.mean()
+            print('Epoch %d \n'%(epoch+1))
+            print('--------------------')
+            print('Train contrastive loss: %.3f '%(mean_cl if mean_cl is not np.nan else 0.0))
+            print('Train metric learning loss: %.3f '%(mean_ml if mean_ml is not np.nan else 0.0))
+            print('Train regression loss: %.3f '%(mean_mse if mean_mse is not np.nan else 0.0))
+
+            print('Train accuracy: %.3f'%(mean_acc*100 if mean_acc is not np.nan else 0.0))
+            print('\n')
+
+            # Loop through mb from validation dataloader
+            self.model.eval()
+            for ix, (input_tensor, y_true, y_regressor) in tqdm.tqdm(enumerate(self.val_loader)):
+
+                # Val step
+                results_dict_test = self.val_step(input_tensor, y_true, y_regressor)
+
+                df_test_loss = df_test_loss.append(results_dict_test['test_loss'], ignore_index = True)
+
+                df_test_acc = df_test_acc.append(
+                    {'test_acc': results_dict_test['test_acc']}, ignore_index = True
+                )
+
+            #df_test_loss['epoch'] = epoch + 1
+            #df_test_acc['epoch'] = epoch + 1
+
+            mean_cl_ = df_test_loss.contrastive_loss.mean()
+            mean_ml_ = df_test_loss.metric_learning_loss.mean()
+            mean_val_mse = df_test_loss.regress.mean()
+            mean_acc_ = df_test_acc.test_acc.mean()
+
+            print('Val contrastive loss: %.3f '%(mean_cl_ if mean_cl_ is not np.nan else 0.0))
+            print('Val metric learning loss: %.3f '%(mean_ml_ if mean_ml_ is not np.nan else 0.0))
+
+            print('Val regression loss: %.3f '%(mean_val_mse if mean_val_mse is not np.nan else 0.0))
             print('Validation accuracy: %.3f'%(mean_acc_*100 if mean_acc_ is not np.nan else 0.0))
             print('\n')
 
@@ -3180,6 +3589,36 @@ def infer_dims_from_state_dict(
         return dims_conv, dims_lin
 
 
+def get_top_genes(top_ixs, return_scores = False):
+    """
+    Params
+    ------
+    top_ixs (list of torch.tensor)
+        Indices for the top genes in every (SAG) pooling layer.
+
+    Notes
+    -----
+    top_ixs is a nested list, so all lists refer to the first one.
+    """
+    assert len(top_ixs)>=2, "You already have top indices !"
+    # Use 0th index as second is attention weights
+    top_ixs_np = [x[0].numpy() for x in top_ixs]
+
+    n_layers = len(top_ixs)
+
+    if n_layers >2:
+        for i in np.arange(1, n_layers-1):
+            tmp_ixs = top_ixs_np[i][top_ixs_np[i+1]]
+    else:
+        tmp_ixs = top_ixs_np[1]
+
+    top_gene_ixs = top_ixs_np[0][tmp_ixs]
+
+    if return_scores:
+        att_wts = top_ixs[n_layers-1][1].detach().numpy()
+        #top_att_wts = att_wts[tmp_ixs]
+        return top_gene_ixs, att_wts
+    return top_gene_ixs
 
 
 def make_knn_graph_eps(data, epsilon = 1, return_adjacency_only = False):
@@ -3213,8 +3652,10 @@ def make_knn_graph_eps(data, epsilon = 1, return_adjacency_only = False):
     other distance metric.
     """
     # Get distance matrix
-    D = generalized_distance_matrix(data, data)
 
+    #D = generalized_distance_matrix(data, data)
+    from sklearn import metrics
+    D = metrics.pairwise_distances(data)
     # Keep only distances below epsilon
     mask = D <= epsilon
     D_thresh = D*mask
@@ -3314,7 +3755,7 @@ def choose_clus_laplacian_knn(
         n_jobs = -1
     ).toarray()
 
-    D = np.diag(A.sum(axis = 0))
+    D = np.diag(A.sum(axis = 1))
     L = D - A
     eigvals, eigvecs = np.linalg.eig(L)
     n_clus = np.sum(eigvals < tol)
@@ -3409,7 +3850,7 @@ def run_gmm(data, n_clus = 5):
 def load_nsaid_names():
     classification = {
         "salicylates": ["aspirin", "diflunisal", "salsalate"],
-        "propionic acid derivatives": [
+        "propionic acid derivatives": [ #2-arylpropionic acid scaffold
             "ibuprofen",
             "dexibuprofen",
             "naproxen",
@@ -3420,7 +3861,9 @@ def load_nsaid_names():
             "oxaprozin",
             "loxoprofen",
             "pelubiprofen",
-            "zaltoprofen"
+            "zaltoprofen",
+            "pranoprofen",
+            "suprofen"
         ],
         "acetic acid derivatives":[
             "indomethacin",
