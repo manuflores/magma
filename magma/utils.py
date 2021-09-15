@@ -1500,7 +1500,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
 
             mean_cl_ = df_test_loss.contrastive_loss.mean()
             mean_ml_ = df_test_loss.metric_learning_loss.mean()
-            mean_val_mse = df_test_loss.regress.mean()
+            mean_val_mse = df_test_loss.regressor_loss.mean()
             mean_acc_ = df_test_acc.test_acc.mean()
 
             print('Val contrastive loss: %.3f '%(mean_cl_ if mean_cl_ is not np.nan else 0.0))
