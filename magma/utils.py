@@ -1416,7 +1416,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
             reg_loss = self.mol_regressor_loop(mol_embedding, y_regressor=y_regressor, alpha = 1e-3)
             loss = cl_loss + metric_learning_loss + reg_loss
             results_dict = {
-                "train_loss": {
+                "test_loss": {
                     "contrastive_loss": cl_loss.item(),
                     "metric_learning_loss": metric_learning_loss.item(),
                     "regressor_loss":reg_loss.item()
