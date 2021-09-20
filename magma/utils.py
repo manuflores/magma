@@ -764,7 +764,6 @@ class JointEmbeddingTrainer:
         model_name:str = None,
         model_dir:str = None,
         extra_head= True,
-        regressor_loss=None,
         ):
         """
         Params
@@ -827,7 +826,6 @@ class JointEmbeddingTrainer:
         self.ix_to_name = dict(adata.obs[['sample_code', 'drug_name']].values)
 
         self.extra_head = extra_head
-        self.regressor_loss = regressor_loss
         #if self.extra_head:
         #    self.regressor_loss = nn.MSELoss()
 
@@ -1175,7 +1173,8 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
         model_name:str = None,
         model_dir:str = None,
         extra_head= True,
-        lambda_reg = 1
+        lambda_reg = 1,
+        regressor_loss=None
     ):
         super().__init__(
             model,
@@ -1196,6 +1195,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
         )
 
         self.lambda_reg = lambda_reg
+        self.regressor_loss = regressor_loss
 
     # def train_step(self, input_tensor, y_true, y_regressor = None, lambda_reg=1):
     #     """
