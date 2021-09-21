@@ -113,6 +113,7 @@ def supervised_trainer_gcn(
     model_dir:str = None,
     model_name:str = None,
     early_stopping_tol:float = 0.3,
+    force_cpu=False
 )-> Tuple[list, np.ndarray, np.ndarray]:
     """
     Wrapper function to train a GNN, returns train and val loss, and val accuracy.
@@ -169,9 +170,9 @@ def supervised_trainer_gcn(
     val_loss_vector = np.empty(shape = n_epochs)
     val_acc_vector = np.empty(shape = n_epochs)
 
-    cuda = torch.cuda.is_available()
+    cuda = False if force_cpu else torch.cuda.is_available()
 
-    if cuda:
+    if cuda and not force_cpu:
         device = try_gpu()
         torch.cuda.set_device(device)
         model = model.to(device)
@@ -3653,12 +3654,12 @@ class CellGraph:
         adj_mat:sparse.csr_matrix,
         gene_names:list,
         supervised:bool = False,
-        #embeddings_matrix:nn.Embedding,
+        force_cpu = False
         ):
 
         self.supervised = supervised
         self.cuda = torch.cuda.is_available()
-        self.device = try_gpu()
+        self.device = torch.device('cpu') if force_cpu else try_gpu
 
         # Adjacency matrix
         self.A = _ensure_sparse_csr_matrix(adj_mat)
