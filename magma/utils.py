@@ -484,7 +484,7 @@ def supervised_trainer(
             for i, (data, y_true) in enumerate(tqdm.tqdm(val_loader)):
 
                 if len(data.shape)<4: # if not images
-                    input_tensor = data.view(batch_size, -1).float()
+                    data = data.view(batch_size, -1).float()
 
                 if cuda:
                     data = data.cuda(device = device)
