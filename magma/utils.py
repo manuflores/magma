@@ -477,12 +477,13 @@ def supervised_trainer(
 
         # VALIDATION LOOP
         with torch.no_grad():
+            model.eval()
             validation_loss = []
             validation_accuracy = []
 
             for i, (data, y_true) in enumerate(tqdm.tqdm(val_loader)):
 
-                if len(data.shape)<4:
+                if len(data.shape)<4: # if not images
                     input_tensor = data.view(batch_size, -1).float()
 
                 if cuda:
@@ -491,7 +492,7 @@ def supervised_trainer(
 
                 val_loss, val_acc = validation_supervised(
                     model, data, y_true, criterion, multiclass, n_classes
-                    )
+                )
 
                 validation_loss.append(val_loss)
                 validation_accuracy.append(val_acc)
@@ -3658,7 +3659,7 @@ class CellGraph:
         ):
 
         self.supervised = supervised
-        self.cuda = torch.cuda.is_available()
+        self.cuda = False if force_cpu else torch.cuda.is_available()
         self.device = torch.device('cpu') if force_cpu else try_gpu
 
         # Adjacency matrix
