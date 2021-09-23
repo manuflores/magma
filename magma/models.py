@@ -1437,3 +1437,38 @@ class VGG_(nn.Module):
             x = torch.sigmoid(x)
 
             return x
+
+
+class MMF(nn.Module):
+    """
+    Multiview matrix factorization (MMF).
+    """
+    def __init__(self, n_rows, cols_list, n_factors):
+        """
+        Parameters
+        ----------
+        n_rows(int)
+            Number of datapoints. Should be constant across datasets.
+
+        cols_list (list)
+            List containing the number of columns in each dataset/view.
+
+        n_factors (int)
+            Number of common factors or clusters. Must be less than or equal
+            to the smallest number of columns of all datasets.
+        """
+        min_cols = min(cols_list)
+        assert n_factors <= min_cols, "You must use a n_factors bigger than the number of columns of all datasets."
+
+        super(MMF, self).__init__()
+        self.cols_list = n_factors
+
+        self.Z = nn.Embedding(n_rows, embedding_dim = n_factors)
+        self.n_views = len(cols_list)
+        self.Ws = nn.ModuleList(
+                [nn.Embedding(n_factors, cols_list[i]) for i in range(self.n_views)]
+            )
+
+    def forward(self, idx_row, view):
+        out = self.Z(idx_row)@self.Ws[view].weight#.clone()
+        return out
