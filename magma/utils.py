@@ -2129,7 +2129,7 @@ def get_count_stats(
 		adata.X = sparse.csr_matrix(adata.X)
 
 	# Number of transcripts per cell
-	adata.obs['n_counts'] = adata.X.sum(axis = 1)
+	adata.obs['n_counts'] = np.asarray(adata.X.sum(axis = 1))
 	adata.obs['log_counts'] = np.log10(adata.obs.n_counts)
 
 	# Number of genes with more than one count
