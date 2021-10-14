@@ -916,7 +916,7 @@ class JointEmbeddingTrainer:
 
     def mol_regressor_loop(self, mol_embedding, y_regressor, lambda_reg=1):
         out = self.model.extra_head(mol_embedding)
-        reg_loss = self.regressor_loss(y_regressor, out)
+        reg_loss = self.regressor_loss(out, y_regressor)
         return lambda_reg*reg_loss
 
     def train_step(self, input_tensor, y_true):
