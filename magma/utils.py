@@ -763,7 +763,8 @@ class JointEmbeddingTrainer:
         model_name:str = None,
         model_dir:str = None,
         extra_head= True,
-        indices=None
+        indices=None,
+        force_cpu = False
         ):
         """
         Params
@@ -784,7 +785,9 @@ class JointEmbeddingTrainer:
         self.adata = adata
         self.train_loader, self.val_loader = train_loader, val_loader
 
-        self.cuda = torch.cuda.is_available()
+        self.cuda = False if force_cpu else torch.cuda.is_available()
+        self.device = torch.device('cpu') if force_cpu else try_gpu()
+
         if self.cuda:
             self.model = self.model.to(device)
 
@@ -1182,7 +1185,8 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
         extra_head= True,
         lambda_reg = 1,
         regressor_loss=None,
-        indices=None
+        indices=None,
+        force_cpu=False
     ):
         super().__init__(
             model,
@@ -1200,7 +1204,8 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
             model_name = model_name,
             model_dir = model_dir,
             extra_head= extra_head,
-            indices=indices
+            indices=indices,
+            force_cpu=force_cpu
         )
 
         self.lambda_reg = lambda_reg
@@ -1462,7 +1467,8 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
         extra_head= True,
         lambda_reg = 1,
         regressor_loss=None,
-        indices=None
+        indices=None,
+        force_cpu=force_cpu
     ):
         super().__init__(
             model,
@@ -1482,7 +1488,8 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
             extra_head= extra_head,
             lambda_reg = lambda_reg,
             regressor_loss=regressor_loss,
-            indices=indices
+            indices=indices,
+            force_cpu=force_cpu
         )
 
     def train_step(self, data):
