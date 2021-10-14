@@ -1468,7 +1468,7 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
         lambda_reg = 1,
         regressor_loss=None,
         indices=None,
-        force_cpu=force_cpu
+        force_cpu=False
     ):
         super().__init__(
             model,
