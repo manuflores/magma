@@ -778,8 +778,8 @@ class JointEmbeddingTrainer:
         regressor_loss (torch.nn.loss, default=None)
             A torch loss function, e.g. nn.MSELoss
         """
-        device = try_gpu()
-        self.device = device
+        #device = try_gpu()
+        #self.device = device
         self.model = model
         self.batch_size = batch_size
         self.adata = adata
@@ -795,7 +795,7 @@ class JointEmbeddingTrainer:
 
         self.hinge_loss = nn.TripletMarginLoss(margin=margin, p=p_norm_metric)
         self.criterion = nn.NLLLoss()
-        self.ordering_labels = torch.arange(batch_size).to(device)
+        self.ordering_labels = torch.arange(batch_size).to(self.device)
 
         self.contrastive = contrastive_learning #bool
         self.metric = metric_learning #bool
