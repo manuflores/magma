@@ -1200,7 +1200,7 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
             model_name = model_name,
             model_dir = model_dir,
             extra_head= extra_head,
-            indices=None
+            indices=indices
         )
 
         self.lambda_reg = lambda_reg
@@ -1471,18 +1471,18 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
             batch_size,
             train_loader,
             val_loader,
-            lr = 1e-5,
-            n_epochs = 20,
-            metric_learning = True,
-            contrastive_learning = True,
-            p_norm_metric = 2,
-            margin = 3.,
-            model_name = None,
-            model_dir = None,
-            extra_head= True,
-            lambda_reg = 1,
-            regressor_loss=None,
-            indices=None
+            lr = lr,
+            n_epochs = n_epochs,
+            metric_learning = metric_learning,
+            contrastive_learning = contrastive_learning,
+            p_norm_metric = p_norm_metric,
+            margin = margin,
+            model_name = model_name,
+            model_dir = model_dir,
+            extra_head= extra_head,
+            lambda_reg = lambda_reg,
+            regressor_loss=regressor_loss,
+            indices=indices
         )
 
     def train_step(self, data):
