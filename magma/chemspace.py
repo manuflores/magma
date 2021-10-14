@@ -499,7 +499,7 @@ def plot_node_activations(
 def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = None):
     "Returns a list of torch.geometric Data object given a list of sample codes."
 
-    if cuda is None:
+    if cuda:
         cuda = torch.cuda.is_available()
 
     drug_graphs = []
@@ -557,3 +557,16 @@ def try_gpu(i=0):
     if torch.cuda.device_count() >= i + 1:
         return torch.device(f'cuda:{i}')
     return torch.device('cpu')
+
+from sklearn.preprocessing import StandardScaler
+
+def read_energy_dataset(fn):
+    ""
+    scaler = StandardScaler()
+    df = pd.read_csv(fn)
+
+    prot = fn.split("_")[0]
+    df["prot"]=prot
+
+    df["energies_norm"] = scaler.fit_transform(df.energy.values.reshape(-1,1)).flatten()
+    return df
