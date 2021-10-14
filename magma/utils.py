@@ -1653,7 +1653,7 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
             self.model.train()
             # Loop through minibatches from training dataloader
             for ix, data in tqdm.tqdm(enumerate(self.train_loader)):
-                if cuda:
+                if self.cuda:
                     data.edge_index = data.edge_index.cuda()
                     data.x = data.x.cuda()
                     data.y = torch.tensor(data.y, device = device)
@@ -1690,7 +1690,7 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
 
             # no_grad declared in the val_step() func
             for ix, data in tqdm.tqdm(enumerate(self.val_loader)):
-                if cuda:
+                if self.cuda:
                     data.edge_index = data.edge_index.cuda()
                     data.x = data.x.cuda()
                     data.y = torch.tensor(data.y, device = device)
