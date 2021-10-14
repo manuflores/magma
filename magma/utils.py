@@ -1468,7 +1468,8 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
         lambda_reg = 1,
         regressor_loss=None,
         indices=None,
-        force_cpu=False
+        force_cpu=False,
+        g_dims = None
     ):
         super().__init__(
             model,
@@ -1491,6 +1492,7 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
             indices=indices,
             force_cpu=force_cpu
         )
+        self.g_dims = g_dims
 
     def train_step(self, data):
         """
@@ -1519,7 +1521,7 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
         #     y_regressor = y_regressor.cuda()
 
         # Extract data for minimizing errors in var name change
-        y_regressor = data.g
+        y_regressor = data.g.reshape(-1, self.g_dims)
         y_true = torch.tensor(data.y, dtype = torch.long)
 
         # Make batch of molecular graphs
@@ -1588,7 +1590,7 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
         #     y_regressor = y_regressor.cuda()
 
         # Extract data for minimizing errors in var name change
-        y_regressor = data.g
+        y_regressor = data.g.reshape(-1, self.g_dims)
         y_true = torch.tensor(data.y, dtype = torch.long)
 
         # Make batch of molecular graphs
