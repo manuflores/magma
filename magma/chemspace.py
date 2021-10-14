@@ -159,7 +159,7 @@ def mol2tensors(mol, use_gpu = True):
     if use_gpu:
         device = try_gpu()
     else:
-        device = 'cpu'
+        device = torch.device('cpu')
 
     node_feats, edge_ixs, edge_feats = mol2graph_data(mol)
 
@@ -507,10 +507,11 @@ def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False):
     for x in labels_batch:
 
         graph = mol2tensors(
-            name_to_mol[ix_to_name[x.item()]]
+            name_to_mol[ix_to_name[x.item()]], use_cuda = cuda
         )
 
         if cuda:
+			#print(c)
             graph.x = graph.x.cuda()
             graph.edge_index = graph.edge_index.cuda()
             graph.edge_attr = graph.edge_attr.cuda()
