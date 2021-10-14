@@ -710,7 +710,6 @@ def get_positive_negative_indices_batch(
             print('At least one label in the positive and negative are the same')
             pass
 
-
         elif label_flip_max_code and not label_flip_min_code:
             perm_labels[ix_to_flip] = perm_labels[ix_to_flip] - 1
 
@@ -764,6 +763,7 @@ class JointEmbeddingTrainer:
         model_name:str = None,
         model_dir:str = None,
         extra_head= True,
+        indices=None
         ):
         """
         Params
@@ -809,19 +809,26 @@ class JointEmbeddingTrainer:
 
         self.model_name, self.model_dir = model_name, model_dir
 
-        # Groupby on train adata
-        gb_train = train_loader.dataset.data.obs.groupby('sample_code')
-        index_dict_train = {}
-        for ix, data in gb_train:
-            index_dict_train[ix] = data.index.values
+        if indices is not None:
+            self.index_dict_train = indices["train"]
+            self.index_dict_test = indices["test"]
 
-        gb_test = val_loader.dataset.data.obs.groupby('sample_code')
-        index_dict_test = {}
-        for ix, data in gb_test:
-            index_dict_test[ix] = data.index.values
+        else:
+            # Groupby on train adata
+            gb_train = train_loader.dataset.data.obs.groupby('sample_code')
+            index_dict_train = {}
+            for ix, data in gb_train:
+                index_dict_train[ix] = data.index.values
 
-        self.index_dict_train = index_dict_train
-        self.index_dict_test = index_dict_test
+            gb_test = val_loader.dataset.data.obs.groupby('sample_code')
+            index_dict_test = {}
+            for ix, data in gb_test:
+                index_dict_test[ix] = data.index.values
+
+            self.index_dict_train = index_dict_train
+            self.index_dict_test = index_dict_test
+
+
         self.name_to_mol = dict(df_drugs[['drug_name', 'mol']].values)
         self.ix_to_name = dict(adata.obs[['sample_code', 'drug_name']].values)
 
@@ -1174,7 +1181,8 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
         model_dir:str = None,
         extra_head= True,
         lambda_reg = 1,
-        regressor_loss=None
+        regressor_loss=None,
+        indices=None
     ):
         super().__init__(
             model,
@@ -1191,7 +1199,8 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
             margin = margin,
             model_name = model_name,
             model_dir = model_dir,
-            extra_head= extra_head
+            extra_head= extra_head,
+            indices=None
         )
 
         self.lambda_reg = lambda_reg
@@ -1452,7 +1461,8 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
         model_dir:str = None,
         extra_head= True,
         lambda_reg = 1,
-        regressor_loss=None
+        regressor_loss=None,
+        indices=None
     ):
         super().__init__(
             model,
@@ -1471,7 +1481,8 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
             model_dir = None,
             extra_head= True,
             lambda_reg = 1,
-            regressor_loss=None
+            regressor_loss=None,
+            indices=None
         )
 
     def train_step(self, data):
