@@ -1599,7 +1599,7 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
         )
 
         # Compute cell and molecule embeddings
-        cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
+        cell_embedding = self.model.encode_cell(data) # this is the thing that changes in GNN
         mol_embedding = self.model.encode_molecule(molecule_batch)
 
         # Run through all modes of the model
