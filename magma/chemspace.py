@@ -507,7 +507,7 @@ def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False):
     for x in labels_batch:
 
         graph = mol2tensors(
-            name_to_mol[ix_to_name[x.item()]], use_cuda = cuda
+            name_to_mol[ix_to_name[x.item()]], use_gpu = cuda
         )
 
         if cuda:
