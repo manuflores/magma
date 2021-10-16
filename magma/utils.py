@@ -1684,9 +1684,9 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
             print('Epoch %d'%(epoch+1))
             print('--------------------')
             print('Train contrastive loss: %.3f '%(mean_cl if mean_cl is not np.nan else 0.0))
+            print('Train metric learning loss: %.3f '%(mean_ml if mean_ml is not np.nan else 0.0))
             if self.extra_head:
-                print('Train metric learning loss: %.3f '%(mean_ml if mean_ml is not np.nan else 0.0))
-            print('Train regression loss: %.3f '%(mean_mse if mean_mse is not np.nan else 0.0))
+                print('Train regression loss: %.3f '%(mean_mse if mean_mse is not np.nan else 0.0))
 
             print('Train accuracy: %.3f'%(mean_acc*100 if mean_acc is not np.nan else 0.0))
             print('\n')
