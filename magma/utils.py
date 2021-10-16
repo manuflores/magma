@@ -1678,12 +1678,14 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
 
             mean_cl = df_train_loss.contrastive_loss.mean()
             mean_ml = df_train_loss.metric_learning_loss.mean()
-            mean_mse = df_train_loss.regressor_loss.mean()
+            if self.extra_head:
+                mean_mse = df_train_loss.regressor_loss.mean()
             mean_acc = df_train_acc.train_acc.mean()
             print('Epoch %d'%(epoch+1))
             print('--------------------')
             print('Train contrastive loss: %.3f '%(mean_cl if mean_cl is not np.nan else 0.0))
-            print('Train metric learning loss: %.3f '%(mean_ml if mean_ml is not np.nan else 0.0))
+            if self.extra_head:
+                print('Train metric learning loss: %.3f '%(mean_ml if mean_ml is not np.nan else 0.0))
             print('Train regression loss: %.3f '%(mean_mse if mean_mse is not np.nan else 0.0))
 
             print('Train accuracy: %.3f'%(mean_acc*100 if mean_acc is not np.nan else 0.0))
@@ -1713,12 +1715,14 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
 
             mean_cl_ = df_test_loss.contrastive_loss.mean()
             mean_ml_ = df_test_loss.metric_learning_loss.mean()
-            mean_val_mse = df_test_loss.regressor_loss.mean()
+            if self.extra_head:
+                mean_val_mse = df_test_loss.regressor_loss.mean()
             mean_acc_ = df_test_acc.test_acc.mean()
 
             print('Val contrastive loss: %.3f '%(mean_cl_ if mean_cl_ is not np.nan else 0.0))
             print('Val metric learning loss: %.3f '%(mean_ml_ if mean_ml_ is not np.nan else 0.0))
-            print('Val regression loss: %.3f '%(mean_val_mse if mean_val_mse is not np.nan else 0.0))
+            if self.extra_head:
+                print('Val regression loss: %.3f '%(mean_val_mse if mean_val_mse is not np.nan else 0.0))
             print('Validation accuracy: %.3f'%(mean_acc_*100 if mean_acc_ is not np.nan else 0.0))
             print('\n')
 
