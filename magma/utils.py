@@ -3279,8 +3279,8 @@ class EvaluateCrossRetrieval:
         if return_:
             return accs
 
-    def eval_cell2mol_accuracy(self, mode = 'cosine'):
-        top_ixs_cells = self.get_top_ixs(data_type = 'cells', mode = mode).T
+    def eval_cell2mol_accuracy(self, mode = 'cosine', k = 15):
+        top_ixs_cells = self.get_top_ixs(data_type = 'cells', mode = mode, top_k=k).T
         acc_indicator = np.zeros((self.adata.n_obs, 5))
 
         if isinstance(self.test_drugs_ixs, list):
