@@ -1521,8 +1521,9 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
         #     y_regressor = y_regressor.cuda()
 
         # Extract data for minimizing errors in var name change
-        y_regressor = data.g.reshape(-1, self.g_dims)
         y_true = torch.tensor(data.y, dtype = torch.long)
+        if self.extra_head:
+            y_regressor = data.g.reshape(-1, self.g_dims)
 
         # Make batch of molecular graphs
         molecule_batch = Batch.from_data_list(
@@ -1590,8 +1591,9 @@ class JointEmbeddingTrainerG(JointEmbeddingTrainerV2):
         #     y_regressor = y_regressor.cuda()
 
         # Extract data for minimizing errors in var name change
-        y_regressor = data.g.reshape(-1, self.g_dims)
         y_true = torch.tensor(data.y, dtype = torch.long)
+        if self.extra_head:
+            y_regressor = data.g.reshape(-1, self.g_dims)
 
         # Make batch of molecular graphs
         molecule_batch = Batch.from_data_list(
@@ -3198,24 +3200,6 @@ class EvaluateCrossRetrieval:
             raise NameError('Mode %s is not implemented. Choose one of [`cosine`, `l2`.]'%mode)
 
         return top_ixs
-
-    # Refactoring ...
-    # def get_cosine_drug_one_vs_all(self, drug_name)->Tuple[np.ndarray, np.ndarray]:
-    #     """
-    #     Returns the cosine similarity distributions of a drug with cells perturbed by it,
-    #     and all other cells coming from other samples.
-    #     """
-    #     n_mols, n_cells = self.cosine_arr.shape
-    #     ix_drug, ix_cells = self.get_ix_drug(drug_name), self.get_ix_cells(drug_name)
-    #
-    #     # Get cosine similarity distribution of a drug with itself
-    #     cosine_cells_drug = self.cosine_arr[ix_drug, ix_cells]
-    #
-    #     # Get the indices of all perturbed with other molecules but `drug_name`'s
-    #     other_cells_ix = np.array(list(set(np.arange(n_cells)) - set(ix_cells)))
-    #     cosine_others = self.cosine_arr[ix_drug, other_cells_ix]
-    #
-    #     return cosine_cells_drug, cosine_others
 
     def get_similarity_drug_one_vs_all(self, drug_name, mode = 'cosine')->Tuple[np.ndarray, np.ndarray]:
         """
