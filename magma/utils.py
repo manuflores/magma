@@ -2150,7 +2150,7 @@ class adata_torch_dataset(Dataset):
 
 
 
-# Make curried to allow kwarg calls on tz.pipe()
+# Make curried to allow kwarg calls on tz.def eval_pipeline()
 @tz.curry
 def get_count_stats(
 	adata,
@@ -2225,7 +2225,7 @@ def get_count_stats(
 	return adata
 
 
-# Curry to be able to add arguments in a tz.pipe
+# Curry to be able to add arguments in a tz.def eval_pipeline
 @tz.curry
 def lognorm_cells(
 	adata_,
@@ -3254,9 +3254,9 @@ class EvaluateCrossRetrieval:
         return similarities_cells_drug, similarities_others
 
 
-    def eval_mol2cell_accuracy(self, mode= 'cosine', return_ = False):
+    def eval_mol2cell_accuracy(self, mode= 'cosine', return_ = False, k = 15):
 
-        top_ixs_mols = self.get_top_ixs(data_type = 'mols', mode = mode)
+        top_ixs_mols = self.get_top_ixs(data_type = 'mols', mode = mode, top_k = k)
 
         # Initialize molecule accuracies list
         accs = []
