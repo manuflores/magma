@@ -760,10 +760,13 @@ class JointEmbeddingTrainer:
 
     Notes
     -----
-    Assumes both adata and df_drugs have coinciding names in the column
+    * Assumes both adata and df_drugs have coinciding names in the column
     `drug_name`. Also assumes that adata has a column called `sample_codes`,
     that are the numerical encoding of each drug name, i.e. that there's a
     mapping {'drug_1': 0, ..., 'drug_n': (n-1)}.
+
+    * `indices` are needed when using a graph dataloader
+      (no .data attribute in dataloader object).
 
     """
     def __init__(
@@ -810,7 +813,7 @@ class JointEmbeddingTrainer:
         self.train_loader, self.val_loader = train_loader, val_loader
 
         self.cuda = False if force_cpu else torch.cuda.is_available()
-        self.device = torch.device('cpu') if force_cpu else try_gpu()
+        self.device = torch.device('cpu') if force_cpu == True else try_gpu()
 
         if self.cuda:
             self.model = self.model.to(device)
