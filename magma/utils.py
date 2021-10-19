@@ -1899,10 +1899,10 @@ class JointEmbeddingTrainerG3(JointEmbeddingTrainerV2):
         #     results_dict["train_loss"]["regressor_loss"]=reg_loss.item()
         #     if "train_acc" not in results_dict.keys():
         #         results_dict["train_acc"]=None
-        else:
-            results_dict["train_loss"]["regressor_loss"]=None
-            if "train_acc" not in results_dict.keys():
-                results_dict["train_acc"]=None
+        # else:
+        #     results_dict["train_loss"]["regressor_loss"]=None
+        #     if "train_acc" not in results_dict.keys():
+        #         results_dict["train_acc"]=None
 
         #Backprop and update weights
         loss.backward()
