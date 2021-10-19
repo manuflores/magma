@@ -816,7 +816,7 @@ class JointEmbeddingTrainer:
         self.device = torch.device('cpu') if force_cpu == True else try_gpu()
 
         if self.cuda:
-            self.model = self.model.to(device)
+            self.model = self.model.to(self.device)
 
         self.n_epochs = n_epochs
 
