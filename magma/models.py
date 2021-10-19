@@ -187,7 +187,7 @@ class GNNBase(nn.Module):
         return x
 
     @torch.no_grad()
-    def project_to_latent_space(self, data_loader, latent_dim):
+    def project_to_latent_space(self, data_loader, latent_dim, try_cuda:False):
         """
         Returns a generator to project dataset into latent space,
         i.e. last hidden layer.
@@ -212,7 +212,11 @@ class GNNBase(nn.Module):
         # Set no_grad mode to avoid updating computational graph.
         # with torch.no_grad()
 
-        cuda = torch.cuda.is_available()
+		if try_cuda:
+        	cuda = torch.cuda.is_available()
+		
+		else:
+			cuda = False
 
         for ix, batch_x in enumerate(tqdm.tqdm(data_loader)):
 
