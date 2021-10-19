@@ -211,12 +211,7 @@ class GNNBase(nn.Module):
 
         # Set no_grad mode to avoid updating computational graph.
         # with torch.no_grad()
-
-		if try_cuda:
-        	cuda = torch.cuda.is_available()
-		
-		else:
-			cuda = False
+        cuda = torch.cuda.is_available() if try_cuda else False
 
         for ix, batch_x in enumerate(tqdm.tqdm(data_loader)):
 
