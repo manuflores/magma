@@ -1330,7 +1330,7 @@ class JointEmbeddingTrainerV3(JointEmbeddingTrainer):
         mol_embedding = self.model.encode_molecule(molecule_batch)
 
         # Here's the part that changes
-        h = torch.cat([mol_embedding, y_regresor], dim = -1)
+        h = torch.cat([mol_embedding, y_regressor], dim = -1)
         mol_embedding = self.model.extra_head(h)
 
         # Run through all modes of the model
