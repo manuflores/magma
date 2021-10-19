@@ -51,17 +51,16 @@ class Data:
         self,
         x,
         y=None,
-        g=None
-    ):
-    """
-    Params
-    ------
-    x (np.array | torch.tensor):
-        Input data to the model
-    """
-    self.x = x
-    self.y = y
-    self.g = g
+        g=None):
+        """
+        Params
+        ------
+        x (np.array | torch.tensor):
+            Input data to the model
+        """
+        self.x = x
+        self.y = y
+        self.g = g
 
 
 def train_supervised_gcn(
