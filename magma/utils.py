@@ -4845,9 +4845,9 @@ class MO_trainer:
         self.device= try_gpu()
         self.ordering_labels=torch.arange(batch_size).to(self.device)
 
-        if self.cuda:
-            if self.model.logit_scale.device() != self.device:
-                self.model = self.model.to(self.device)
+        # if self.cuda:
+        #     if self.model.logit_scale.device() != self.device:
+        #         self.model = self.model.to(self.device)
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr = lr)
         self.model_name, self.model_dir = model_name, model_dir
