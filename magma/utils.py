@@ -4837,12 +4837,13 @@ class MO_trainer:
         self.train_loader, self.val_loader = train_loader, val_loader
         self.n_epochs = n_epochs
         self.criterion = nn.NLLLoss()
-        self.ordering_labels=torch.arange(batch_size).to(self.device)
+
         self.n_train_batches = len(train_loader.dataset) // batch_size
         self.n_test_batches = len(val_loader.dataset) // batch_size
 
         self.cuda = torch.cuda.is_available()
         self.device= try_gpu()
+        self.ordering_labels=torch.arange(batch_size).to(self.device)
 
         if self.cuda:
             if self.model.logit_scale.device() != self.device:
