@@ -4806,3 +4806,220 @@ def load_nsaid_names():
             ["nimesulide"],
         "others":["clonixin", "licofelone", "harpagide"]
     }
+
+
+# Need
+
+class MO_trainer:
+    """
+    Multiomics trainer.
+    """
+    def __init__(
+        self,
+        model,
+        atac_adata,
+        split_dict,
+        batch_size,
+        train_loader,
+        val_loader,
+        rna_adata=None,
+        lr=3e-6,
+        n_epochs=20,
+        model_name=None,
+        model_dir=None
+        ):
+
+        self.model = model
+        self.batch_size = batch_size
+        self.atac_adata = atac_adata
+        self.rna_adata = atac_adata
+
+        self.train_loader, self.val_loader = train_loader, val_loader
+        self.n_epochs = n_epochs
+        self.criterion = nn.NLLLoss()
+        self.ordering_labels=torch.arange(batch_size).to(self.device)
+        self.n_train_batches = len(train_loader.dataset) // batch_size
+        self.n_test_batches = len(val_loader.dataset) // batch_size
+
+        self.cuda = torch.cuda.is_available()
+        self.device= try_gpu()
+
+        if self.cuda:
+            if self.model.logit_scale.device() != self.device:
+                self.model = self.model.to(self.device)
+
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr = lr)
+        self.model_name, self.model_dir = model_name, model_dir
+
+    def train_step(
+        self,
+        cell_batch,
+        ix_labels
+        ):
+
+        results_dict={
+            "train_loss": {}
+        }
+
+        self.model.zero_grad()
+
+        atac_batch=torch.from_numpy(
+                self.atac_adata[self.atac_adata.barcodes.isin(ix_labels)]
+        )
+        if self.cuda():
+            cell_batch = cell_batch.cuda()
+            atach_batch = atac_batch.cuda()
+
+        logits = self.model(atac_batch,cell_batch)
+
+        y_atac=F.log_softmax(logits, dim = 1)
+        y_rna=F.log_softmax(logits, dim = 0)
+
+        # Compute error and average
+        loss_atac = self.criterion(y_atac, self.ordering_labels)
+        loss_rna = self.criterion(y_rna, self.ordering_labels)
+
+        loss = (loss_atac + loss_rna)/2
+
+        atac_acc = accuracy(y_atac.argmax(axis =1), self.ordering_labels)
+        rna_acc = accuracy(y_rna.argmax(axis = 0), self.ordering_labels)
+
+        acc = (atac_acc + rna_acc)/2
+
+        # Backprop and update weights
+        loss.backward()
+        self.optimizer.step()
+
+        result_dict["train_loss"]["contrastive_loss"] = loss
+        result_dict["train_acc"] = acc
+
+        return result_dict
+
+    @torch.no_grad()
+    def val_step(self, cell_batch, ix_labels):
+
+        result_dict = {"test_loss": {}}
+
+        atac_batch=torch.from_numpy(
+                self.atac_adata[self.atac_adata.barcodes.isin(ix_labels)]
+        )
+
+        if self.cuda():
+            cell_batch = cell_batch.cuda()
+            atach_batch = atac_batch.cuda()
+
+        logits = self.model(atac_batch,cell_batch)
+
+        y_atac=F.log_softmax(logits, dim = 1)
+        y_rna=F.log_softmax(logits, dim = 0)
+
+        # Compute error and average
+        loss_atac = self.criterion(y_atac, self.ordering_labels)
+        loss_rna = self.criterion(y_rna, self.ordering_labels)
+
+        loss = (loss_atac + loss_rna)/2
+
+        atac_acc = accuracy(y_atac.argmax(axis =1), self.ordering_labels)
+        rna_acc = accuracy(y_rna.argmax(axis = 0), self.ordering_labels)
+
+        acc = (atac_acc + rna_acc)/2
+
+        result_dict["test_loss"]["contrastive_loss"] = loss
+        result_dict["train_acc"] = acc
+
+        return result_dict
+
+    def train(self)-> pd.DataFrame:
+
+        df_train_loss, df_train_acc = pd.DataFrame(), pd.DataFrame()
+        df_test_loss, df_test_acc = pd.DataFrame(), pd.DataFrame()
+
+        for epoch in np.arange(self.n_epochs):
+            self.model.train()
+            # Loop through minibatches from training dataloader
+            for ix, (cell_batch, ix_labels) in tqdm.tqdm(enumerate(self.train_loader)):
+
+                # Train step
+                results_dict_train = self.train_step(cell_batch, ix_labels)
+
+                df_train_loss = df_train_loss.append(
+                    results_dict_train['train_loss'], ignore_index = True
+                )
+
+                df_train_acc = df_train_acc.append(
+                    {'train_acc': results_dict_train['train_acc']}, ignore_index = True
+                )
+            mean_cl = df_train_loss.contrastive_loss.mean()
+            mean_acc = df_train_acc.train_acc.mean()
+            print('Epoch %d'%(epoch+1))
+            print('--------------------')
+            print('Train contrastive loss: %.3f '%(mean_cl if mean_cl is not np.nan else 0.0))
+            #print('Train metric learning loss: %.3f '%(mean_ml if mean_ml is not np.nan else 0.0))
+            #print('Train regression loss: %.3f '%(mean_mse if mean_mse is not np.nan else 0.0))
+            print('Train accuracy: %.3f'%(mean_acc*100 if mean_acc is not np.nan else 0.0))
+            print('\n')
+
+        self.model.eval()
+        for ix, (cell_batch, ix_labels) in tqdm.tqdm(enumerate(self.val_loader)):
+
+            # Val step
+            results_dict_test = self.val_step(cell_batch, ix_labels)
+
+            df_test_loss = df_test_loss.append(results_dict_test['test_loss'], ignore_index = True)
+
+            df_test_acc = df_test_acc.append(
+                {'test_acc': results_dict_test['test_acc']}, ignore_index = True
+            )
+
+        mean_cl_ = df_test_loss.contrastive_loss.mean()
+        #mean_ml_ = df_test_loss.metric_learning_loss.mean()
+        #mean_val_mse = df_test_loss.regressor_loss.mean()
+        mean_acc_ = df_test_acc.test_acc.mean()
+
+        print('Val contrastive loss: %.3f '%(mean_cl_ if mean_cl_ is not np.nan else 0.0))
+        #print('Val metric learning loss: %.3f '%(mean_ml_ if mean_ml_ is not np.nan else 0.0))
+        #print('Val regression loss: %.3f '%(mean_val_mse if mean_val_mse is not np.nan else 0.0))
+        print('Validation accuracy: %.3f'%(mean_acc_*100 if mean_acc_ is not np.nan else 0.0))
+        print('\n')
+
+        # SAVE MODEL
+        if self.model_dir is not None:
+            if not os.path.exists(self.model_dir):
+                os.makedirs(self.model_dir, exist_ok=True)
+
+            if self.model_name is not None:
+                torch.save(
+                    self.model.state_dict(),
+                    os.path.join(self.model_dir, self.model_name + '_' + str(epoch +1) + '.pt')
+                )
+            else:
+                torch.save(
+                    self.model.state_dict(),
+                    os.path.join(self.model_dir, 'model' + '_' + str(epoch +1) + '.pt')
+                )
+
+        # Summarize results
+        df_train_logs = pd.concat([df_train_loss, df_train_acc], axis = 1)
+        df_test_logs = pd.concat([df_test_loss, df_test_acc], axis = 1)
+
+        epoch_indicator_train = np.concatenate(
+            [np.repeat(epoch, self.n_train_batches) for epoch in np.arange(1, self.n_epochs+1)]
+        )
+
+        epoch_indicator_test = np.concatenate(
+            [np.repeat(epoch, self.n_test_batches) for epoch in np.arange(1, self.n_epochs +1)]
+        )
+
+        df_train_logs['epoch'] = epoch_indicator_train
+        df_test_logs['epoch'] = epoch_indicator_test
+
+        # Set logs as attributes
+        self.train_logs = df_train_logs
+        self.test_logs = df_test_logs
+
+        df_train_agg = df_train_logs.groupby('epoch').mean().reset_index()
+        df_test_agg = df_test_logs.groupby('epoch').mean().reset_index()
+
+        self.best_model_ix = int(df_test_agg.test_acc.argmax())
+
+        return df_train_logs, df_test_logs
