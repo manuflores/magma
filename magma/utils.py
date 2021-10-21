@@ -4864,7 +4864,7 @@ class MO_trainer:
         self.model.zero_grad()
 
         atac_batch=torch.from_numpy(
-                self.atac_adata[self.atac_adata.barcodes.isin(ix_labels)]
+                self.atac_adata[self.atac_adata.barcodes.isin(ix_labels)].X.A
         )
         if self.cuda():
             cell_batch = cell_batch.cuda()
@@ -4901,7 +4901,7 @@ class MO_trainer:
         result_dict = {"test_loss": {}}
 
         atac_batch=torch.from_numpy(
-                self.atac_adata[self.atac_adata.barcodes.isin(ix_labels)]
+                self.atac_adata[self.atac_adata.barcodes.isin(ix_labels)].X.A
         )
 
         if self.cuda():
