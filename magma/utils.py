@@ -2538,7 +2538,7 @@ def vae_trainer(
             if cuda:
                 input_tensor = input_tensor.cuda(device = device)
 
-            train_loss = train_vae(model, input_tensor, optimizer, batch_size)
+            train_loss = train_vae(model, input_tensor, optimizer)
 
             running_loss +=train_loss.item()
 
