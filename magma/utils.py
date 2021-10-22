@@ -4892,7 +4892,7 @@ class MO_trainer:
         loss.backward()
         self.optimizer.step()
 
-        results_dict["train_loss"]["contrastive_loss"] = loss
+        results_dict["train_loss"]["contrastive_loss"] = loss.item()
         results_dict["train_acc"] = acc
 
         return results_dict
@@ -4926,7 +4926,7 @@ class MO_trainer:
 
         acc = (atac_acc + rna_acc)/2
 
-        results_dict["test_loss"]["contrastive_loss"] = loss
+        results_dict["test_loss"]["contrastive_loss"] = loss.item()
         results_dict["test_acc"] = acc
 
         return results_dict
