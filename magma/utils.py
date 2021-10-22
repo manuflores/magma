@@ -4867,7 +4867,7 @@ class MO_trainer:
         atac_batch=torch.from_numpy(
                 self.atac_adata[self.atac_adata.obs.barcodes.isin(ix_labels)].X.A
         )
-        if self.cuda():
+        if self.cuda:
             cell_batch = cell_batch.cuda()
             atach_batch = atac_batch.cuda()
 
@@ -4905,7 +4905,7 @@ class MO_trainer:
                 self.atac_adata[self.atac_adata.obs.barcodes.isin(ix_labels)].X.A
         )
 
-        if self.cuda():
+        if self.cuda:
             cell_batch = cell_batch.cuda()
             atach_batch = atac_batch.cuda()
 
