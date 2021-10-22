@@ -4961,28 +4961,28 @@ class MO_trainer:
             print('Train accuracy: %.3f'%(mean_acc*100 if mean_acc is not np.nan else 0.0))
             print('\n')
 
-        self.model.eval()
-        for ix, (cell_batch, ix_labels) in tqdm.tqdm(enumerate(self.val_loader)):
+            self.model.eval()
+            for ix, (cell_batch, ix_labels) in tqdm.tqdm(enumerate(self.val_loader)):
 
-            # Val step
-            results_dict_test = self.val_step(cell_batch, ix_labels)
+                # Val step
+                results_dict_test = self.val_step(cell_batch, ix_labels)
 
-            df_test_loss = df_test_loss.append(results_dict_test['test_loss'], ignore_index = True)
+                df_test_loss = df_test_loss.append(results_dict_test['test_loss'], ignore_index = True)
 
-            df_test_acc = df_test_acc.append(
-                {'test_acc': results_dict_test['test_acc']}, ignore_index = True
-            )
+                df_test_acc = df_test_acc.append(
+                    {'test_acc': results_dict_test['test_acc']}, ignore_index = True
+                )
 
-        mean_cl_ = df_test_loss.contrastive_loss.mean()
-        #mean_ml_ = df_test_loss.metric_learning_loss.mean()
-        #mean_val_mse = df_test_loss.regressor_loss.mean()
-        mean_acc_ = df_test_acc.test_acc.mean()
+            mean_cl_ = df_test_loss.contrastive_loss.mean()
+            #mean_ml_ = df_test_loss.metric_learning_loss.mean()
+            #mean_val_mse = df_test_loss.regressor_loss.mean()
+            mean_acc_ = df_test_acc.test_acc.mean()
 
-        print('Val contrastive loss: %.3f '%(mean_cl_ if mean_cl_ is not np.nan else 0.0))
-        #print('Val metric learning loss: %.3f '%(mean_ml_ if mean_ml_ is not np.nan else 0.0))
-        #print('Val regression loss: %.3f '%(mean_val_mse if mean_val_mse is not np.nan else 0.0))
-        print('Validation accuracy: %.3f'%(mean_acc_*100 if mean_acc_ is not np.nan else 0.0))
-        print('\n')
+            print('Val contrastive loss: %.3f '%(mean_cl_ if mean_cl_ is not np.nan else 0.0))
+            #print('Val metric learning loss: %.3f '%(mean_ml_ if mean_ml_ is not np.nan else 0.0))
+            #print('Val regression loss: %.3f '%(mean_val_mse if mean_val_mse is not np.nan else 0.0))
+            print('Validation accuracy: %.3f'%(mean_acc_*100 if mean_acc_ is not np.nan else 0.0))
+            print('\n')
 
         # SAVE MODEL
         if self.model_dir is not None:
