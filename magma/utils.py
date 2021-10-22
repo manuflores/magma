@@ -4892,15 +4892,15 @@ class MO_trainer:
         loss.backward()
         self.optimizer.step()
 
-        result_dict["train_loss"]["contrastive_loss"] = loss
-        result_dict["train_acc"] = acc
+        results_dict["train_loss"]["contrastive_loss"] = loss
+        results_dict["train_acc"] = acc
 
-        return result_dict
+        return results_dict
 
     @torch.no_grad()
     def val_step(self, cell_batch, ix_labels):
 
-        result_dict = {"test_loss": {}}
+        results_dict = {"test_loss": {}}
 
         atac_batch=torch.from_numpy(
                 self.atac_adata[self.atac_adata.obs.barcodes.isin(ix_labels)].X.A
@@ -4926,8 +4926,8 @@ class MO_trainer:
 
         acc = (atac_acc + rna_acc)/2
 
-        result_dict["test_loss"]["contrastive_loss"] = loss
-        result_dict["train_acc"] = acc
+        results_dict["test_loss"]["contrastive_loss"] = loss
+        results_dict["train_acc"] = acc
 
         return result_dict
 
