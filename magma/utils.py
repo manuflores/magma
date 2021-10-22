@@ -4871,7 +4871,7 @@ class MO_trainer:
             cell_batch = cell_batch.cuda()
             atach_batch = atac_batch.cuda()
 
-        logits = self.model(atac_batch,cell_batch)
+        logits = self.model(atac_batch.float(),cell_batch.float())
 
         y_atac=F.log_softmax(logits, dim = 1)
         y_rna=F.log_softmax(logits, dim = 0)
@@ -4909,7 +4909,7 @@ class MO_trainer:
             cell_batch = cell_batch.cuda()
             atach_batch = atac_batch.cuda()
 
-        logits = self.model(atac_batch,cell_batch)
+        logits = self.model(atac_batch.float(),cell_batch.float())
 
         y_atac=F.log_softmax(logits, dim = 1)
         y_rna=F.log_softmax(logits, dim = 0)
