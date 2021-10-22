@@ -1094,7 +1094,7 @@ class VariationalAutoencoder(nn.Module):
 
         return variational_loss
 
-    def get_z(self, x):
+    def project(self, x):
 
         """
         Encode a batch of data points into their latent representation z.
