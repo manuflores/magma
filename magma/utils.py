@@ -4984,21 +4984,21 @@ class MO_trainer:
             print('Validation accuracy: %.3f'%(mean_acc_*100 if mean_acc_ is not np.nan else 0.0))
             print('\n')
 
-        # SAVE MODEL
-        if self.model_dir is not None:
-            if not os.path.exists(self.model_dir):
-                os.makedirs(self.model_dir, exist_ok=True)
+            # SAVE MODEL
+            if self.model_dir is not None:
+                if not os.path.exists(self.model_dir):
+                    os.makedirs(self.model_dir, exist_ok=True)
 
-            if self.model_name is not None:
-                torch.save(
-                    self.model.state_dict(),
-                    os.path.join(self.model_dir, self.model_name + '_' + str(epoch +1) + '.pt')
-                )
-            else:
-                torch.save(
-                    self.model.state_dict(),
-                    os.path.join(self.model_dir, 'model' + '_' + str(epoch +1) + '.pt')
-                )
+                if self.model_name is not None:
+                    torch.save(
+                        self.model.state_dict(),
+                        os.path.join(self.model_dir, self.model_name + '_' + str(epoch +1) + '.pt')
+                    )
+                else:
+                    torch.save(
+                        self.model.state_dict(),
+                        os.path.join(self.model_dir, 'model' + '_' + str(epoch +1) + '.pt')
+                    )
 
         # Summarize results
         df_train_logs = pd.concat([df_train_loss, df_train_acc], axis = 1)
