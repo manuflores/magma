@@ -4929,7 +4929,7 @@ class MO_trainer:
         results_dict["test_loss"]["contrastive_loss"] = loss
         results_dict["train_acc"] = acc
 
-        return result_dict
+        return results_dict
 
     def train(self)-> pd.DataFrame:
 
