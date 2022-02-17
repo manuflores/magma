@@ -2753,7 +2753,7 @@ class adata_torch_dataset(Dataset):
             enc = OneHotEncoder(sparse = False)
             self.one_hot_encoder = enc
 
-            n_categories = len(self.data["target_col"].unique())
+            n_categories = len(self.data.obs["target_col"].unique())
 
             # Extract target data
             y_data = self.data.obs[self.target_col].values.astype(str).reshape(-1, n_categories)
