@@ -2788,14 +2788,17 @@ class adata_torch_dataset(Dataset):
         # Get all columns for multilabel classification codes
         if self.supervised and self.multilabel and self.g_cols is not None:
             # Extract vector of for conditional generation
-            g_vars = self.data.obs.iloc[ix][self.g_cols].values#.astype(np.float32)
+            g_vars = self.data.obs.iloc[ix][self.g_cols].values.astype(np.float32)
             target = self.multilabel_codes[ix, :]
-            return data_point, target, torch.from_numpy(g_vars)
+            print(f"g_vars dtype is {type(g_vars)}")
+            print(f"target dtype is {type(target)}")
+
+            return data_point, torch.from_numpy(target), torch.from_numpy(g_vars)
 
         elif self.supervised and self.multilabel and self.g_cols is None:
             target = self.multilabel_codes[ix, :]
             #target = self.transform(target)
-            return data_point, target
+            return data_point, torch.from_numpy(target)
 
         # Fall back to non-multilabel case
         # Softmax-classification plus conditional generator
