@@ -128,9 +128,9 @@ class GNNBase(nn.Module):
 		self,
 		data,
 		pool = True,
+        extra_graph_feats = None,
 		reg_hook_input = False,
 		reg_hook_conv = False,
-		extra_graph_feats = None
 		):
         """
         Projects data up to last hidden layer for visualization.
