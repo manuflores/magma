@@ -2719,8 +2719,10 @@ class adata_torch_dataset(Dataset):
             In this case, we will use the nn.BCELoss() using the one-hot encoded
             labels. This is akin to a multi-output classification.
 
-        g_cols(list, default = None)
+        g_cols(list, default = None) 
             List of columns in an auxiliary variable for conditional generation.
+            Columns need to be numerical, i.e. if you're using a categorical variable, 
+            it needs to be encoded numerically.
 
         multilabel (bool, default = False)
             Indicator variable to specify a multilabel classifier dataset.
@@ -2761,6 +2763,7 @@ class adata_torch_dataset(Dataset):
             # Build one hot encoder
             self.one_hot_encoder.fit(y_data)
 
+            print("Building one-hot-matrix for multilabel codes.")
             # Get one-hot matrix and save as attribute
             self.multilabel_codes = self.one_hot_encoder.transform(y_data)
 
@@ -2787,11 +2790,9 @@ class adata_torch_dataset(Dataset):
 
         # Get all columns for multilabel classification codes
         if self.supervised and self.multilabel and self.g_cols is not None:
-            # Extract vector of for conditional generation
+            # Extract vector of for conditional generation (need to be numerical)
             g_vars = self.data.obs.iloc[ix][self.g_cols].values.astype(np.float32)
             target = self.multilabel_codes[ix, :]
-            print(f"g_vars dtype is {type(g_vars)}")
-            print(f"target dtype is {type(target)}")
 
             return data_point, torch.from_numpy(target), torch.from_numpy(g_vars)
 
