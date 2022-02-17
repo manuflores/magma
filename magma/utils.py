@@ -30,7 +30,7 @@ from joblib import Parallel, delayed
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from torch.utils.data import Dataset, IterableDataset, DataLoader
+from torch.utils.data import Dataset, DataLoader
 
 import torch_geometric
 from torch_geometric.data import Batch
@@ -946,7 +946,7 @@ class JointEmbeddingTrainer:
         reg_loss = self.regressor_loss(out, y_regressor)
         return lambda_reg*reg_loss
 
-    def train_step(self, input_tensor, y_true):
+    def train_step(self, input_tensor, y_true, extra_graph_feats = None):
         "A single training step for a minibatch."
 
         self.model.zero_grad()
@@ -967,7 +967,7 @@ class JointEmbeddingTrainer:
 
         # Compute cell and molecule embeddings
         cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
-        mol_embedding = self.model.encode_molecule(molecule_batch)
+        mol_embedding = self.model.encode_molecule(molecule_batch, extra_graph_feats)
 
         if self.contrastive:
             cl_loss, train_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
@@ -1018,7 +1018,7 @@ class JointEmbeddingTrainer:
         return results_dict
 
     @torch.no_grad()
-    def val_step(self, input_tensor, y_true):
+    def val_step(self, input_tensor, y_true, extra_graph_feats=None):
         """
         """
         #self.model.eval()
@@ -1039,7 +1039,7 @@ class JointEmbeddingTrainer:
 
         # Compute cell and molecule embeddings
         cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
-        mol_embedding = self.model.encode_molecule(molecule_batch)
+        mol_embedding = self.model.encode_molecule(molecule_batch, extra_graph_feats)
 
         if self.contrastive:
             cl_loss, test_acc = self.contrastive_learning_loop(mol_embedding, cell_embedding)
@@ -1237,7 +1237,7 @@ class JointEmbeddingTrainerV3(JointEmbeddingTrainer):
         self.regressor_loss = regressor_loss
 
 
-    def train_step(self, input_tensor, y_true, y_regressor=None):
+    def train_step(self, input_tensor, y_true, y_regressor=None, extra_graph_feats = None):
         loss=0
         results_dict={ "train_loss": {} }
 
@@ -1256,7 +1256,7 @@ class JointEmbeddingTrainerV3(JointEmbeddingTrainer):
 
         # Compute cell and molecule embeddings
         cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
-        mol_embedding = self.model.encode_molecule(molecule_batch)
+        mol_embedding = self.model.encode_molecule(molecule_batch, extra_graph_feats)
 
         # This is the part that changes:
         h = torch.cat([mol_embedding, y_regressor], dim = -1)
@@ -1310,7 +1310,7 @@ class JointEmbeddingTrainerV3(JointEmbeddingTrainer):
         return results_dict
 
     @torch.no_grad()
-    def val_step(self, input_tensor, y_true, y_regressor=None):
+    def val_step(self, input_tensor, y_true, y_regressor=None, extra_graph_feats=None):
 
         self.model.eval()
         results_dict={"test_loss": {}} # init results dictionary
@@ -1327,7 +1327,7 @@ class JointEmbeddingTrainerV3(JointEmbeddingTrainer):
         )
 
         cell_embedding = self.model.encode_cell(input_tensor.view(self.batch_size, -1).float())
-        mol_embedding = self.model.encode_molecule(molecule_batch)
+        mol_embedding = self.model.encode_molecule(molecule_batch, extra_graph_feats)
 
         # Here's the part that changes
         h = torch.cat([mol_embedding, y_regressor], dim = -1)
@@ -2786,14 +2786,20 @@ class adata_torch_dataset(Dataset):
             data_point = self.transform(data_point)
 
         # Get all columns for multilabel classification codes
-        if self.supervised and self.multilabel:
+        if self.supervised and self.multilabel and self.g_cols is not None:
+            # Extract vector of for conditional generation
+            g_vars = self.data.obs.iloc[ix][self.g_cols].values#.astype(np.float32)
+            target = self.multilabel_codes[ix, :]
+            return data_point, target, torch.from_numpy(g_vars)
+
+        elif self.supervised and self.multilabel and self.g_cols is None:
             target = self.multilabel_codes[ix, :]
             #target = self.transform(target)
             return data_point, target
 
-
+        # Fall back to non-multilabel case
         # Softmax-classification plus conditional generator
-        elif self.supervised and self.g_cols is not None:
+        elif self.supervised and self.g_cols is not None and not self.multilabel:
             target = self.data.obs.iloc[ix][self.target_col]
 
             # Extract vector of for conditional generation
@@ -2802,7 +2808,7 @@ class adata_torch_dataset(Dataset):
 
         # Get categorical labels for multiclass or binary classification
         # or single column for regression (haven't implemented multioutput reg.)
-        elif self.supervised:
+        elif self.supervised and not self.multilabel:
             target  = self.data.obs.iloc[ix][self.target_col]
             #target = self.transform(target)
             return data_point, target
@@ -3761,36 +3767,6 @@ class EvaluateCrossRetrieval:
 
         if _return:
             return mol_embedding
-
-    # refactoring
-    # def compute_cosine_arr(self, return_ = False, project_mols = False, n_dims = 64):
-    #     """
-    #     Computes cosine array. It stores an output array
-    #     """
-    #     if project_mols:
-    #         mol_embedding = self.project_molecules()
-    #     else:
-    #         mol_embedding = self.drugbank[['dim_' + str(i) for i in range(1,n_dims +1)]].values
-    #
-    #     cell_embedding = self.adata.obs[['dim_' + str(i) for i in range(1, n_dims+1)]].values
-    #
-    #     #self.mol_embedding = mol_embedding
-    #     mol_embedding = self.mol_embedding
-    #
-    #     self.cell_embedding = cell_embedding
-    #
-    #     # Normalize to make row vectors
-    #     mol_embedding_norm  = mol_embedding / np.linalg.norm(mol_embedding, axis = 1).reshape(-1,1)
-    #     cell_embedding_norm = cell_embedding / np.linalg.norm(cell_embedding, axis = 1).reshape(-1,1)
-    #
-    #     # Compute cosine similarity, shape (molecules, cells)
-    #     cosine_arr = np.matmul(mol_embedding_norm, cell_embedding_norm.T)
-    #
-    #     #print('Shape of cosine similarity array: {0}'.format(cosine_arr.shape))
-    #     self.cosine_arr = cosine_arr
-    #
-    #     if return_:
-    #         return cosine_arr
 
     def compute_cosine_arr(self, return_ = False):
         """
