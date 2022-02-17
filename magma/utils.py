@@ -2680,7 +2680,8 @@ class adata_torch_dataset(Dataset):
     "Convert an adata to a torch.Dataset"
     def __init__(
         self, data= None, transform = None, supervised = False,
-        target_col = None, g_cols = None, multilabel = False)->torch.tensor:
+        target_col = None, g_cols = None, multilabel = False, verbose = False
+        )->torch.tensor:
         """
         Base class for a single cell dataset in .h5ad, i.e. AnnData format
         This object enables building models in pytorch.
@@ -2763,9 +2764,12 @@ class adata_torch_dataset(Dataset):
             # Build one hot encoder
             self.one_hot_encoder.fit(y_data)
 
-            print("Building one-hot-matrix for multilabel codes.")
+            if verbose: 
+                print("Building one-hot-matrix for multilabel codes.")
             # Get one-hot matrix and save as attribute
             self.multilabel_codes = self.one_hot_encoder.transform(y_data)
+            if verbose: 
+                print(f"Finished encoding multilabel target_col with {len(self.one_hot_encoder.categories_)}.")
 
     def __len__(self):
         return self.data.n_obs
