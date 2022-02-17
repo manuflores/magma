@@ -127,8 +127,8 @@ class GNNBase(nn.Module):
     def project(
 		self,
 		data,
-		pool = True,
         extra_graph_feats = None,
+		pool = True,
 		reg_hook_input = False,
 		reg_hook_conv = False,
 		):
