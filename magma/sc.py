@@ -182,7 +182,7 @@ def get_deg_report_vs_control(
 
     deg_adata.var.set_index('gene_name', drop =False, inplace = True)
 
-    control_name = adata_control[0].obs[gene_col_name].values[0]
+    control_name = adata_control[0].obs[sample_col_name].values[0]
     drug_name = adata_test[0].obs[sample_col_name].values[0]
 
     gps = (control_name, drug_name)

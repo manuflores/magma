@@ -124,7 +124,14 @@ class GNNBase(nn.Module):
 				["regression", "multiclass", "binary", "multilabel"]'
             )
 
-    def project(self, data, pool = True, reg_hook_input = False, reg_hook_conv = False):
+    def project(
+		self,
+		data,
+		pool = True,
+		reg_hook_input = False,
+		reg_hook_conv = False,
+		extra_graph_feats = None
+		):
         """
         Projects data up to last hidden layer for visualization.
 
@@ -175,6 +182,10 @@ class GNNBase(nn.Module):
         # Return node embeddings
         else:
             return x
+
+
+        if extra_graph_feats is not None: 
+            x = torch.cat([x, extra_graph_feats], dim = -1)
 
         # Project to last layer
         if self.multiple_linear:
@@ -1192,9 +1203,9 @@ class JointEmbedding(nn.Module):
         #if extra_head:
         #    self.extra_head= supervised_model(head_dims)
 
-    def encode_molecule(self, molecule_batch):
+    def encode_molecule(self, molecule_batch, extra_graph_feats=None):
         molecule_embedding = self.molecule_encoder.project(
-            molecule_batch
+            molecule_batch, extra_graph_feats
         )
         return molecule_embedding
 

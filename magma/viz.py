@@ -79,6 +79,11 @@ def get_binary_palettes():
 
     return pals
 
+
+def colored_clustermap(df, col):
+    """
+    """
+
 def radar_chart(categories, values, color = 'lightgreen'):
     """
     Wrapper function to make radar chart from a counts dictionary.
@@ -285,7 +290,9 @@ def make_bokeh_plot_mols(
         df['image'] = df.mol.apply(mol_to_bokeh_encodable)
 
     df_viz = df[cols_viz]
-    cats = df_viz[color_by].unique().astype(str)
+    df_viz[color_by] = df_viz[color_by].astype(str)
+
+    cats = df_viz[color_by].unique()
     n_cats = cats.size
 
     palette = cc.glasbey_dark[:n_cats]

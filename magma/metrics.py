@@ -10,8 +10,11 @@
 #     - [>]  topk (numpy)
 
 import numpy as np
+import numba
 import torch
 from typing import Optional, Sequence, Tuple, Union
+from sklearn.neighbors import KDTree
+from sklearn.metrics import pairwise_distances
 
 def generalized_distance_matrix(X,Y):
     """
@@ -266,7 +269,7 @@ def get_clus_metrics(y_pred, y_true):
     Designed to work for cases where ground truth is known
     or a comparison between sets is amenable.
     """
-    nmi = normalized_mutual_info_score(
+    nmi = nmi_from_labels(
         y_true, y_pred
     )
 
@@ -321,3 +324,85 @@ def topk(arr, k = 2, axis = 1):
 	else:
 		print('Function available for 2D arrays only.')
 		return None
+
+
+def multilabel_accuracy(y_true, y_pred):
+    """
+    Average ratio of intersection over union of \hat{y} and y.
+    """
+    tmp = 0
+    for i in range(y_true.shape[0]):
+        tmp+=np.sum(np.logical_and(y_true[i], y_pred[i]))/np.sum(np.logical_or(y_true[i], y_pred[i]))
+    return tmp / y_true.shape[0]
+
+
+@numba.njit
+def hamming_dist(y_true, y_pred):
+    "Returns the average hamming distance for multilabel classification."
+    running_sum=0
+
+    n_samples = y_true.shape[0]
+    for i in range(n_samples):
+        running_sum += np.sum(y_true[i] != y_pred[i])
+
+    hamming_dist = running_sum / n_samples
+    return hamming_dist
+
+@numba.njit
+def precision(y_true, y_pred):
+    """
+    Average ratio of cardinality of intersection between y_i and \hat{y_i}
+    over cardinality of predicted labels \hat{y_i}.
+    """
+    running_sum = 0
+    n_samples = y_true.shape[0]
+    for i in range(n_samples):
+        if np.sum(y_pred[i]) == 0:
+            continue
+        else:
+            running_sum += np.logical_and(y_true[i], y_pred[i]).sum() / np.sum(y_pred[i])
+    recall = running_sum / n_samples
+    return recall
+
+
+@numba.njit
+def recall(y_true, y_pred):
+    """
+    Average ratio of cardinality of intersection between y_i and \hat{y_i}
+    over cardinality of true labels y_i.
+    """
+    running_sum = 0
+    n_samples = y_true.shape[0]
+
+    for i in range(n_samples):
+        if np.sum(y_true[i]) == 0:
+            continue
+        else:
+            running_sum += np.logical_and(y_true[i], y_pred[i]).sum() / np.sum(y_true[i])
+    recall = running_sum / n_samples
+
+    return recall
+
+
+def affinity(data,sigma):
+    n, _ = data.shape[0]
+    D = pairwise_distances(data)
+    A = np.exp(-D**2/sigma**2) - np.eye(n)
+
+    return A
+
+def affinity_norm(data, k):
+    """
+    Params
+    ------
+    k : k-th nearest neighbor
+
+    """
+    tree=KDTree(data, leaf_size=2)
+    distances, indices = tree.query(data, k = k)
+    k_dist= distances[:, -1]
+    densities = 1/k_dist
+    D_scaled = D**2 * densities * densities.reshape(-1,1)
+    A_scaled = np.exp(-D_scaled)
+
+    return A_scaled
