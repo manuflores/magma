@@ -2753,7 +2753,7 @@ class adata_torch_dataset(Dataset):
             enc = OneHotEncoder(sparse = False)
             self.one_hot_encoder = enc
 
-            n_categories = len(self.target_col)
+            n_categories = len(self.data["target_col"].unique())
 
             # Extract target data
             y_data = self.data.obs[self.target_col].values.astype(str).reshape(-1, n_categories)
@@ -2803,7 +2803,7 @@ class adata_torch_dataset(Dataset):
             target = self.data.obs.iloc[ix][self.target_col]
 
             # Extract vector of for conditional generation
-            g_vars = self.data.obs.iloc[ix][self.g_cols].values.astype(np.float32)
+            g_vars = self.data.obs.iloc[ix][self.g_cols].values#.astype(np.float32)
             return data_point, target, torch.from_numpy(g_vars)#.view(1,1,-1)
 
         # Get categorical labels for multiclass or binary classification
