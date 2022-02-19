@@ -2811,7 +2811,7 @@ class adata_torch_dataset(Dataset):
             target = self.data.obs.iloc[ix][self.target_col]
 
             # Extract vector of for conditional generation
-            g_vars = self.data.obs.iloc[ix][self.g_cols].values#.astype(np.float32)
+            g_vars = self.data.obs.iloc[ix][self.g_cols].values.astype(np.float32)
             return data_point, target, torch.from_numpy(g_vars)#.view(1,1,-1)
 
         # Get categorical labels for multiclass or binary classification
@@ -4946,6 +4946,7 @@ class MO_trainer:
             print('\n')
 
             self.model.eval()
+            
             for ix, (cell_batch, ix_labels) in tqdm.tqdm(enumerate(self.val_loader)):
 
                 # Val step
