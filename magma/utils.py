@@ -5,7 +5,7 @@ from .metrics import generalized_distance_matrix_torch
 from .chemspace import get_drug_batch
 
 from typing import Optional, Sequence, Tuple, Union
-
+import warnings 
 import scipy.io as sio
 import scipy.stats as st
 from scipy import sparse
@@ -3557,6 +3557,8 @@ class EvaluateCrossRetrieval:
                 adata.obs['drug_name'] = adata.obs['product_name'].apply(
                     lambda x: sample_to_name(str(x), eliminate_parens = True, eliminate_hcl = False)
                 ).str.lower()
+            else: 
+                warnings.warn(f"dataset not previously logged.")
 
         if 'drug_name' not in df_drugs:
             df_drugs['drug_name'] = df_drugs[drugs_col_name].apply(
@@ -3607,7 +3609,7 @@ class EvaluateCrossRetrieval:
             self.adata.obs['target'] = self.adata.obs.drug_name.apply(
                 lambda x: self.name_to_target[x] if x in self.name_to_target.keys() else 'undefined'
             )
-        else:# thomsonlab
+        elif dataset == "thomsonlab":# thomsonlab
             self.drugbank.rename(columns = {'Target': 'target'}, inplace = True)
             self.name_to_target = dict(df_drugs_test[['drug_name', 'target']].values)
             self.name_to_class = dict(df_drugs_test[['drug_name','drug_class']].values)
@@ -3620,6 +3622,23 @@ class EvaluateCrossRetrieval:
             )
 
             self.drugbank['name_class'] = self.drugbank['drug_name'] + ['_'] + self.drugbank['drug_class']
+
+        else: 
+            try: 
+                self.name_to_target = dict(df_drugs_test[['drug_name', 'target']].values)
+                self.name_to_class = dict(df_drugs_test[['drug_name','drug_class']].values)
+                self.adata.obs['drug_class'] = self.adata.obs.drug_name.apply(
+                    lambda x: self.name_to_class[x] if x in self.name_to_class.keys() else 'undefined'
+                )
+
+                self.adata.obs['target'] = self.adata.obs.drug_name.apply(
+                    lambda x: self.name_to_target[x] if x in self.name_to_target.keys() else 'undefined'
+                )
+
+                self.drugbank['name_class'] = self.drugbank['drug_name'] + ['_'] + self.drugbank['drug_class']
+            except: 
+                warnings.warn("Could not format name_class column for aggregate visualization.")
+            
 
         self.test_drugs_ixs = [self.name_to_ix[drug] for drug in self.test_drugs]
 
