@@ -694,6 +694,8 @@ def get_positive_negative_indices_batch(
     positive_anchor_ixs, negative_anchor_ixs, perm_labels
 
     """
+    n_pts = y_true.shape[0]
+    arange = np.arange(n_pts)
 
     max_index = max(index_dict.keys())
 
@@ -709,7 +711,9 @@ def get_positive_negative_indices_batch(
     labels = y_true.numpy()
 
     # Shuffle labels
-    perm_labels= np.random.permutation(labels)
+    ix_perm = np.random.permutation(arange)
+
+    perm_labels = labels[ix_perm]
 
     # Check if any of shuffled labels didn't change
     ix_eq = (labels == perm_labels)
@@ -724,7 +728,6 @@ def get_positive_negative_indices_batch(
         # subtract as adding would result in error
 
         label_flip_max_code = np.any(perm_labels[ix_to_flip] == max_index)
-
         label_flip_min_code = np.any(perm_labels[ix_to_flip] == 0)
 
         # Unlikely case where the batch contains both
@@ -744,14 +747,11 @@ def get_positive_negative_indices_batch(
 
     # Check that all labels are different
     #assert np.all(labels != perm_labels)
-
-
     # Get anchor indices for samples
     positive_anchor_ixs = [np.random.choice(index_dict[l], size = 1)[0] for l in labels]
-
     negative_anchor_ixs = [np.random.choice(index_dict[l], size = 1)[0] for l in perm_labels]
 
-    return positive_anchor_ixs, negative_anchor_ixs, perm_labels
+    return positive_anchor_ixs, negative_anchor_ixs, perm_labels, ix_perm
 
 
 class JointEmbeddingTrainer:
@@ -1661,8 +1661,6 @@ class JointEmbeddingTrainerV2(JointEmbeddingTrainer):
                 results_dict["test_acc"]=None
 
         #No backprop
-        #loss.backward()
-        #self.optimizer.step()
 
         return results_dict
 
@@ -3578,7 +3576,8 @@ class EvaluateCrossRetrieval:
         df_drugs_test.reset_index(drop = True, inplace = True)
 
         # Assign an index to each drug.
-        codes, unique_drugs = np.arange(len(df_drugs_test)), df_drugs_test.drug_name.values #pd.factorize(df_drugs_test['drug_name'])
+        codes, unique_drugs = pd.factorize(df_drugs_test['drug_name'])
+        #np.arange(len(df_drugs_test)), df_drugs_test.drug_name.values
 
         # Make sure we only have unique drugs
         assert len(unique_drugs) == df_drugs_test.drug_name.unique().shape[0]
@@ -5029,3 +5028,80 @@ class MO_trainer:
         self.best_model_ix = int(df_test_agg.test_acc.argmax())
 
         return df_train_logs, df_test_logs
+
+
+
+
+# def metric_learning_loop(
+#     y_true, 
+#     cell_embedding, 
+#     mol_embedding, 
+#     index_dict,
+#     adata,
+#     name_to_mol,
+#     ix_to_name,
+#     hinge_loss,
+#     model,
+#     cuda = False,
+#     )-> Tuple[metric_learning_loss, acc]:
+#     """
+#     Returns average hinge loss from cells2mols and mols2cells for a minibatch.
+#     """
+
+#     pos_cell_ixs, neg_cell_ixs, perm_y_labels = get_positive_negative_indices_batch(
+#         y_true, index_dict, cuda = cuda
+#     )
+
+#     # Get positive and negative anchors for cells
+#     positive_anchors_cells = torch.from_numpy(adata[pos_cell_ixs].X.A)
+#     negative_anchors_cells = torch.from_numpy(adata[neg_cell_ixs].X.A)
+
+#     if cuda:
+#         positive_anchors_cells = positive_anchors_cells.cuda()
+#         negative_anchors_cells = negative_anchors_cells.cuda()
+
+#     # Get negative anchors for molecules
+#     permuted_molecule_batch = Batch.from_data_list(
+#         get_drug_batch(
+#             torch.from_numpy(perm_y_labels),
+#             name_to_mol,
+#             ix_to_name,
+#             cuda = cuda
+#         )
+#     )
+
+#     # Compute embeddings
+#     positive_cell_embeddings = model.encode_cell(positive_anchors_cells)
+#     negative_cell_embeddings = model.encode_cell(negative_anchors_cells)
+#     permuted_molecule_embeddings = model.encode_molecule(permuted_molecule_batch)
+
+#     # Compute metric learning loss
+#     # (anchor, positive, negative)
+#     hinge_cells_anchor = hinge_loss(
+#         cell_embedding, mol_embedding, permuted_molecule_embeddings
+#     )
+
+#     hinge_mols_anchor = hinge_loss(
+#         mol_embedding, positive_cell_embeddings, negative_cell_embeddings
+#     )
+
+#     metric_learning_loss = (hinge_cells_anchor + hinge_mols_anchor)/2
+
+#     all_cells = torch.cat((cell_embedding, negative_cell_embeddings),  dim=0)
+#     all_mols = torch.cat((mol_embedding, negative_cell_embeddings), dim=0)
+
+#     n_pts = all_cells.size()[0]
+
+#     if cuda:
+#         ordering_labels = torch.arange(n_pts).cuda()
+#     else: 
+#         ordering_labels = torch.arange(n_pts)
+    
+#     D = torch.cdist(all_mols,all_cells, p=1)
+#     y_pred_cells, y_pred_mols = D.argmin(axis = 0), D.argmin(axis = 1)
+
+#     acc_cells = accuracy(y_pred_cells, ordering_labels)
+#     acc_mols = accuracy(y_pred_mols, ordering_labels)
+#     acc = (acc_cells + acc_mols)/2
+
+#     return metric_learning_loss, acc
