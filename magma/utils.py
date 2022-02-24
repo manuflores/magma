@@ -714,7 +714,7 @@ def get_positive_negative_indices_batch(
     ix_perm = np.random.permutation(arange)
     perm_labels = labels[ix_perm]
 
-    print(labels, perm_labels)
+    #print(labels, perm_labels)
 
     # Check if any of shuffled labels didn't change
     ix_eq = (labels == perm_labels)
