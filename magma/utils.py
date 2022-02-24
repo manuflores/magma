@@ -675,7 +675,7 @@ def supervised_model_predict(
 
 def get_positive_negative_indices_batch(
         y_true:torch.Tensor, index_dict:dict, cuda:bool = None
-    )->Tuple[np.array, np.array, np.array]:
+    )->Tuple[np.array, np.array, np.array, np.array]:
     """
     Returns indices for positive and negative anchors,
     to use in metric learning using hinge triplet loss,
@@ -712,8 +712,9 @@ def get_positive_negative_indices_batch(
 
     # Shuffle labels
     ix_perm = np.random.permutation(arange)
-
     perm_labels = labels[ix_perm]
+
+    print(labels, perm_labels)
 
     # Check if any of shuffled labels didn't change
     ix_eq = (labels == perm_labels)
