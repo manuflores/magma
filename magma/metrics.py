@@ -207,6 +207,48 @@ def entropy(ps):
 
     return entropy
 
+def kl_div_naive(p,q): 
+    kl = sum(p*np.log2(p/q))
+    return kl
+
+def kl_div(p:np.array,q:np.array)-> float:
+    """
+    Returns Kullback-Leibler divergence given two probability distros.
+    """
+    nz_p = np.nonzero(p)
+    nz_q = np.nonzero(q)
+
+    a = np.sum(p[nz_p]*np.log2(p[nz_p]))
+    b = np.sum(p[nz_q]*np.log2(q[nz_q]))
+    kl = a - b
+    return kl 
+
+def JSD(p:np.array,q:np.array)->float: #jsd
+    "Returns Jensen-Shannon div given two prob distros"
+    m = 0.5*(p+q)
+    jensen_shannon_div = 0.5*kl_div(p,m) + 0.5*kl_div(q,m)
+    return jensen_shannon_div
+
+
+def kld_torch(p:torch.tensor,q:torch.tensor)-> float:
+    """
+    Returns Kullback-Leibler divergence given two probability distros.
+    """
+    nz_p = torch.nonzero(p)
+    nz_q = torch.nonzero(q)
+
+    a = torch.sum(p[nz_p]*torch.log2(p[nz_p]))
+    b = torch.sum(p[nz_q]*torch.log2(q[nz_q]))
+    kl = a - b
+    return kl 
+
+def JSD_torch(p:torch.tensor,q:torch.tensor)-> float:
+    "Returns Jensen-Shannon div given two prob distros"
+    m = 0.5*(p+q)
+    jensen_shannon_div = 0.5*kld_torch(p,m) + 0.5*kld_torch(q,m)
+    return jensen_shannon_div
+
+
 def nmi_from_labels(pred_labels, true_labels):
 	"""
 	Returns the normalized mutual information (NMI) of two clustering
