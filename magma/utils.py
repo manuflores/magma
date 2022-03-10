@@ -384,7 +384,6 @@ def supervised_trainer(
     early_stopping_tol:float = 0.2,
     is_cell_encoder = True,
     use_lr_scheduler = True
-    **kwargs
     ):
     """
     Wrapper function to train a supervised model for n_epochs.
