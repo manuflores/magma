@@ -383,7 +383,8 @@ def supervised_trainer(
     model_name:str = None,
     early_stopping_tol:float = 0.2,
     is_cell_encoder = True,
-    use_lr_scheduler = True
+    use_lr_scheduler = True, 
+    **kwargs
     ):
     """
     Wrapper function to train a supervised model for n_epochs.
