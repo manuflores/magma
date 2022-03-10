@@ -452,6 +452,14 @@ def supervised_trainer(
     val_loss_vector = np.empty(shape = n_epochs)
     val_acc_vector = np.empty(shape = n_epochs)
 
+    lr_scheduler = scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 
+        mode='min',
+        patience = 2,# actually works like patience + 1
+        threshold=1e-4, 
+        verbose = True
+    )
+
     cuda = torch.cuda.is_available()
 
     if cuda:
@@ -464,6 +472,7 @@ def supervised_trainer(
         running_loss = 0
 
         # TRAINING LOOP
+        model.train()
         for ix, (data, y_true) in enumerate(tqdm.tqdm(train_loader)):
             # if epoch==0: 
             #     print(data.dtype)
@@ -534,7 +543,8 @@ def supervised_trainer(
             print('Val. loss %.3f'% mean_val_loss)
             print('Val. accuracy %.3f'% (mean_val_acc*100))
 
-
+        lr_scheduler.step(mean_val_loss)
+        
         # EARLY STOPPING LOOP
         if epoch > 0:
             if val_loss_vector[epoch] > (1+early_stopping_tol)*val_loss_vector[epoch-1]:
