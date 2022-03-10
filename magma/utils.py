@@ -383,6 +383,7 @@ def supervised_trainer(
     model_name:str = None,
     early_stopping_tol:float = 0.2,
     is_cell_encoder = True,
+    use_lr_scheduler = True
     **kwargs
     ):
     """
@@ -520,8 +521,14 @@ def supervised_trainer(
 
             for i, (data, y_true) in enumerate(tqdm.tqdm(val_loader)):
 
-                if len(data.shape)<4: # if not images
+                # if len(data.shape)<4: # if not images
+                #     data = data.view(batch_size, -1).float()
+                
+                if is_cell_encoder:
+                # if epoch == 0:
+                #     print("Not training images")
                     data = data.view(batch_size, -1).float()
+
 
                 if cuda:
                     data = data.cuda(device = device)
@@ -543,8 +550,9 @@ def supervised_trainer(
             print('Val. loss %.3f'% mean_val_loss)
             print('Val. accuracy %.3f'% (mean_val_acc*100))
 
-        lr_scheduler.step(mean_val_loss)
-        
+        if use_lr_scheduler:
+            lr_scheduler.step(mean_val_loss)
+
         # EARLY STOPPING LOOP
         if epoch > 0:
             if val_loss_vector[epoch] > (1+early_stopping_tol)*val_loss_vector[epoch-1]:
