@@ -466,6 +466,7 @@ def supervised_trainer(
         for ix, (data, y_true) in enumerate(tqdm.tqdm(train_loader)):
             if epoch==0: 
                 print(data.dtype)
+                print(len(data.shape))
             if len(data.shape)<4:
                 if epoch == 0:
                     print("Not training images")
