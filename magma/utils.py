@@ -382,6 +382,7 @@ def supervised_trainer(
     model_dir:str = None,
     model_name:str = None,
     early_stopping_tol:float = 0.2,
+    is_cell_encoder = True,
     **kwargs
     ):
     """
@@ -464,12 +465,13 @@ def supervised_trainer(
 
         # TRAINING LOOP
         for ix, (data, y_true) in enumerate(tqdm.tqdm(train_loader)):
-            if epoch==0: 
-                print(data.dtype)
-                print(len(data.shape))
-            if len(data.shape)<4:
-                if epoch == 0:
-                    print("Not training images")
+            # if epoch==0: 
+            #     print(data.dtype)
+            #     print(len(data.shape))
+            #if len(data.shape)<4:
+            if is_cell_encoder:
+                # if epoch == 0:
+                #     print("Not training images")
                 data = data.view(batch_size, -1).float()
 
             if cuda:
