@@ -466,6 +466,8 @@ def supervised_trainer(
         for ix, (data, y_true) in enumerate(tqdm.tqdm(train_loader)):
 
             if len(data.shape)<4:
+                if epoch == 0:
+                    print("Not training images")
                 data = data.view(batch_size, -1).float()
 
             if cuda:
