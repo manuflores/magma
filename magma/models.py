@@ -328,7 +328,7 @@ class GAE(GraphConvNetwork):
         dims_lin, 
         model_type,
         **kwargs
-        )
+        ):
 
         super(GAE, self).__init__(
             dims_conv = dims_conv, 
@@ -337,7 +337,7 @@ class GAE(GraphConvNetwork):
             **kwargs
         )
 
-    self.device = try_gpu()
+        self.device = try_gpu()
 
     def encode(self, data, pool = False, **kwargs):
         return self.project(
