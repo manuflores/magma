@@ -94,7 +94,6 @@ def train_supervised_gcn(
 
         acc = accuracy(y_pred, y_true)
 
-
     loss.backward()
     optimizer.step()
 
@@ -123,6 +122,22 @@ def val_supervised_gcn(
 
     return loss.mean(), acc
 
+
+# def ae_trainer_gcn(
+#     n_epochs:int,
+#     train_loader,
+#     val_loader,
+#     model,
+#     criterion,
+#     optimizer,
+#     multiclass= False,
+#     n_classes = 1,
+#     logs_per_epoch = 5,
+#     model_dir:str = None,
+#     model_name:str = None,
+#     early_stopping_tol:float = 0.3,
+#     force_cpu=False
+# ):
 
 def supervised_trainer_gcn(
     n_epochs:int,
@@ -282,7 +297,7 @@ def supervised_trainer_gcn(
         # SAVE MODEL
         if model_dir is not None:
             if not os.path.exists(model_dir):
-                os.mkdir(model_dir)
+                os.makedirs(model_dir)
 
             if model_name is not None:
                 torch.save(
@@ -296,7 +311,6 @@ def supervised_trainer_gcn(
                 )
 
     print('Finished training')
-
     return train_loss_vector, val_loss_vector, val_acc_vector
 
 
@@ -362,7 +376,7 @@ def validation_supervised(model, input_tensor, y_true, loss_fn, multiclass =Fals
     else:
         loss = loss_fn(y_pred, y_true.view(-1, n_classes).float())
         try:
-            acc = accuracy(y_pred, y_true.view(-1, n_out).float())
+            acc = accuracy(y_pred, y_true.view(-1, n_classes).float())
         except:
             acc = None
 
