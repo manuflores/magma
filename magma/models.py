@@ -23,61 +23,61 @@ from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_poo
 import copy
 
 class BnLinear(nn.Module):
-	"""Linear layer with batch normalization."""
-	def __init__(self, input_dim, output_dim, kwargs = None):
-	    super(BnLinear, self).__init__()
+    """Linear layer with batch normalization."""
+    def __init__(self, input_dim, output_dim, kwargs = None):
+        super(BnLinear, self).__init__()
 
-	    if kwargs is not None:
-	        self.linear = nn.Linear(input_dim, output_dim, **kwargs)
-	    else:
-	        self.linear = nn.Linear(input_dim, output_dim)
+        if kwargs is not None:
+            self.linear = nn.Linear(input_dim, output_dim, **kwargs)
+        else:
+            self.linear = nn.Linear(input_dim, output_dim)
 
-	    self.bn = nn.BatchNorm1d(output_dim)
+        self.bn = nn.BatchNorm1d(output_dim)
 
-	def forward(self, x):
-	    x = self.linear(x)
-	    x = self.bn(x)
+    def forward(self, x):
+        x = self.linear(x)
+        x = self.bn(x)
 
-	    return x
+        return x
 
 class BnGraphConvLayer(GCNConv):
-	"""Graph Conv Layer with batch normalization."""
-	def __init__(self, in_channels, out_channels, **kwargs):
-	    super(GCNConv, self).__init__()
+    """Graph Conv Layer with batch normalization."""
+    def __init__(self, in_channels, out_channels, **kwargs):
+        super(GCNConv, self).__init__()
 
-	    self.graph_conv = GCNConv(in_channels, out_channels)
-	    self.bn = nn.BatchNorm1d(out_channels)
-	    self.in_channels = in_channels
-	    self.out_channels = out_channels
+        self.graph_conv = GCNConv(in_channels, out_channels)
+        self.bn = nn.BatchNorm1d(out_channels)
+        self.in_channels = in_channels
+        self.out_channels = out_channels
 
-	def forward(self, x, edge_index):
-	    x = self.graph_conv(x, edge_index)
-	    x = self.bn(x)
+    def forward(self, x, edge_index):
+        x = self.graph_conv(x, edge_index)
+        x = self.bn(x)
 
-	    return x
+        return x
 
 class BnGATConv(nn.Module):
-	"""Graph Attention layer with Batch normalization."""
-	def __init__(self, in_channels, out_channels, kwargs={}):
-	    """Batchnorm Graph Attention Conv layer. """
-	    super(BnGATConv, self).__init__()
+    """Graph Attention layer with Batch normalization."""
+    def __init__(self, in_channels, out_channels, kwargs={}):
+        """Batchnorm Graph Attention Conv layer. """
+        super(BnGATConv, self).__init__()
 
 
-	    self.graph_conv = GATConv(
-	        in_channels,
-	        out_channels,
-	        **kwargs
-	    )
+        self.graph_conv = GATConv(
+            in_channels,
+            out_channels,
+            **kwargs
+        )
 
-	    self.bn = nn.BatchNorm1d(out_channels)
-	    self.in_channels = in_channels
-	    self.out_channels = out_channels
+        self.bn = nn.BatchNorm1d(out_channels)
+        self.in_channels = in_channels
+        self.out_channels = out_channels
 
-	def forward(self, x, edge_index):
-	    x = self.graph_conv(x, edge_index)
-	    x = self.bn(x)
+    def forward(self, x, edge_index):
+        x = self.graph_conv(x, edge_index)
+        x = self.bn(x)
 
-	    return x
+        return x
 
 
 class GNNBase(nn.Module):
@@ -125,13 +125,13 @@ class GNNBase(nn.Module):
             )
 
     def project(
-		self,
-		data,
+        self,
+        data,
         extra_graph_feats = None,
-		pool = True,
-		reg_hook_input = False,
-		reg_hook_conv = False,
-		):
+        pool = True,
+        reg_hook_input = False,
+        reg_hook_conv = False,
+        ):
         """
         Projects data up to last hidden layer for visualization.
 
@@ -145,23 +145,23 @@ class GNNBase(nn.Module):
             Optional kwarg, if set to True gets graph embeddings
             from node embeddings.
 
-		reg_hook_input (bool, default= False)
-			Whether to record the gradients since for the input graph.
-			This is helpful to compute gradinput graph attribution method.
+        reg_hook_input (bool, default= False)
+            Whether to record the gradients since for the input graph.
+            This is helpful to compute gradinput graph attribution method.
 
-		reg_hook_conv (bool, default = False)
-			Whether to record the grads after the last conv layer.
-			This method is helpful for gradCAM.
+        reg_hook_conv (bool, default = False)
+            Whether to record the grads after the last conv layer.
+            This method is helpful for gradCAM.
 
         """
 
         x, edge_index = data.x, data.edge_index
 
-		# For gradinput
+        # For gradinput
         if reg_hook_input:
             h = x.register_hook(self.activations_hook)
 
-		# Forward pass through conv layers
+        # Forward pass through conv layers
         for conv_layer in self.conv_encoder:
             x = conv_layer(x, edge_index)
             x = self.activation_func_conv(x)
@@ -192,7 +192,7 @@ class GNNBase(nn.Module):
             for dense_layer in self.linear_layers:
                 x = dense_layer(x)
                 if self.activation_func_linear is not None:
-                	x = self.activation_func_linear(x)
+                    x = self.activation_func_linear(x)
 
 
         return x
@@ -236,8 +236,6 @@ class GNNBase(nn.Module):
             for x in batch_x_preds:
                 encoded_sample = x.reshape(latent_dim)
                 yield encoded_sample
-
-
 
 
 class GraphConvNetwork(GNNBase):
@@ -322,6 +320,39 @@ class GraphConvNetwork(GNNBase):
         self.model_type = model_type
         self.activation_func_conv = act_func_conv
         self.activation_func_linear = act_func_linear
+
+class GAE(GraphConvNetwork): 
+    def __init__(
+        self, 
+        dims_conv, 
+        dims_lin, 
+        model_type,
+        **kwargs
+        )
+
+        super(GAE, self).__init__(
+            dims_conv = dims_conv, 
+            dims_lin = dims_lin, 
+            model_type = model_type,
+            **kwargs
+        )
+
+    self.device = try_gpu()
+
+    def encode(self, data, pool = False, **kwargs):
+        return self.project(
+            data,
+            extra_graph_feats = None,
+            pool = pool,
+            reg_hook_input = False,
+            reg_hook_conv = False
+        )
+
+    def decode(self, z, sigmoid= True):
+        "Returns predicted adjacency matrix given node embeddings."
+        A = z@z.t()    
+        return torch.sigmoid(A) if sigmoid else A
+
 
 
 class GraphAttentionNetwork(GNNBase):
@@ -444,6 +475,7 @@ class GraphAttentionNetwork(GNNBase):
         self.model_type = model_type
         self.activation_func_conv = act_func_conv
         self.activation_func_linear = act_func_linear
+
 
 
 class GeneRegNet(GraphConvNetwork):
