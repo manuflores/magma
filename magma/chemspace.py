@@ -148,7 +148,7 @@ def mol2graph_data(mol)->tuple:
     return np.stack(node_feats), np.stack(edge_ixs), np.stack(edge_feats)#, adj
 
 
-def mol2tensors(mol, use_gpu = True):
+def mol2tensors(mol, use_gpu = True, idx = None):
     """
     Generates a torch_geometric.data.Data object from
     an RDkit molecule.
@@ -156,8 +156,10 @@ def mol2tensors(mol, use_gpu = True):
     #node_feats, edge_ixs, edge_feats, adj = mol2graph_data(mol)
 
 	#cuda = torch.cuda.is_available()
+    idx = 0 if idx is None else idx
+
     if use_gpu:
-        device = try_gpu()
+        device = try_gpu(idx)
     else:
         device = torch.device('cpu')
 
@@ -496,7 +498,7 @@ def plot_node_activations(
 
 
 
-def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False):
+def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False, dev_idx = None):
     "Returns a list of torch.geometric Data object given a list of sample codes."
 
     if cuda:
@@ -504,10 +506,12 @@ def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False):
 
     drug_graphs = []
 
+    dev_idx = 0 if dev_idx is None else dev_idx
+
     for x in labels_batch:
 
         graph = mol2tensors(
-            name_to_mol[ix_to_name[x.item()]], use_gpu = cuda
+            name_to_mol[ix_to_name[x.item()]], use_gpu = cuda, idx = dev_idx
         )
 
         if cuda:
