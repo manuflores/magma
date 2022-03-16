@@ -508,6 +508,8 @@ def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False, dev_idx 
 
     dev_idx = 0 if dev_idx is None else dev_idx
 
+    
+
     for x in labels_batch:
 
         graph = mol2tensors(
@@ -516,9 +518,9 @@ def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False, dev_idx 
 
         if cuda:
 			#print(c)
-            graph.x = graph.x.cuda()
-            graph.edge_index = graph.edge_index.cuda()
-            graph.edge_attr = graph.edge_attr.cuda()
+            graph.x = graph.x.cuda(dev_idx)
+            graph.edge_index = graph.edge_index.cuda(dev_idx)
+            graph.edge_attr = graph.edge_attr.cuda(dev_idx)
 
         drug_graphs.append(graph)
 
