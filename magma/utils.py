@@ -2616,7 +2616,13 @@ def vae_trainer(
     return train_loss_vector, val_loss_vector
 
 
-
+def get_free_mem_dev(i=0):
+    import pynvml
+    pynvml.nvmlInit()
+    handle = pynvml.nvmlDeviceGetHandleByIndex(int(gpu_index))
+    mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+    free_mem = mem_info.free // 1024 ** 2
+    return free_mem 
 
 def try_gpu(i=0):
     """
@@ -2709,7 +2715,7 @@ def initialize_network_weights(
 
 
     else:
-        raiseNameError('Method not found. Only valid for `kaiming` or `xavier` initialization.')
+        raise NameError('Method not found. Only valid for `kaiming` or `xavier` initialization.')
 
     return net
 
