@@ -2616,10 +2616,10 @@ def vae_trainer(
     return train_loss_vector, val_loss_vector
 
 
-def get_free_mem_dev(i=0):
+def get_free_mem_dev(gpu_idx=0):
     import pynvml
     pynvml.nvmlInit()
-    handle = pynvml.nvmlDeviceGetHandleByIndex(int(gpu_index))
+    handle = pynvml.nvmlDeviceGetHandleByIndex(int(gpu_idx))
     mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
     free_mem = mem_info.free // 1024 ** 2
     return free_mem 
