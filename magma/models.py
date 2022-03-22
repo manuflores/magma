@@ -420,7 +420,6 @@ class GAE(GraphConvNetwork):
         return roc_auc, avg_prec
 
 
-
 class GraphAttentionNetwork(GNNBase):
     """
     Graph Convolutional Net with attention mechanism for supervised model tasks.
