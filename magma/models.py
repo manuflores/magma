@@ -411,8 +411,8 @@ class GAE(GraphConvNetwork):
         neg_y = z.new_zeros(neg_edge_index.size(1))
         y = torch.cat([pos_y, neg_y], dim=0)
 
-        pos_pred = self.decoder(z, pos_edge_index, sigmoid=True)
-        neg_pred = self.decoder(z, neg_edge_index, sigmoid=True)
+        pos_pred = self.decode(z, pos_edge_index, sigmoid=True)
+        neg_pred = self.decode(z, neg_edge_index, sigmoid=True)
         pred = torch.cat([pos_pred, neg_pred], dim=0)
 
         y, pred = y.detach().cpu().numpy(), pred.detach().cpu().numpy()
