@@ -416,11 +416,9 @@ class GAE(GraphConvNetwork):
         pred = torch.cat([pos_pred, neg_pred], dim=0)
 
         y, pred = y.detach().cpu().numpy(), pred.detach().cpu().numpy()
+        roc_auc, avg_prec = roc_auc_score(y, pred).round(2), average_precision_score(y, pred).round(2)
+        return roc_auc, avg_prec
 
-        return roc_auc_score(y, pred), average_precision_score(y, pred)
-
-
-    #def recon_loss():
 
 
 class GraphAttentionNetwork(GNNBase):
