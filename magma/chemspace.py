@@ -505,10 +505,8 @@ def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False, dev_idx 
         cuda = torch.cuda.is_available()
 
     drug_graphs = []
-
-    dev_idx = 0 if dev_idx is None else dev_idx
-
     
+    dev_idx = 0 if dev_idx is None else dev_idx
 
     for x in labels_batch:
 

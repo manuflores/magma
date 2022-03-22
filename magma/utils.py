@@ -39,6 +39,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, Draw
 import matplotlib.pyplot as plt
 
+
 # TO-DO: Refactor trainers to work with Data objects,
 # for different models not to be hard coded only based
 # on their number of inputs (e.g. supervised {x,y},
@@ -4640,9 +4641,9 @@ def get_louvain_clus_epsilon_graph(data, eps = 1, _plot = False, res = 1):
         Keys are the standard indices of the numpy array.
     """
 
-    G = make_knn_graph_eps(data, eps=eps)
+    G = make_knn_graph_eps(data, epsilon=eps)
 
-    clus = community.best_partition(g, resolution = res)
+    clus = community.best_partition(G, resolution = res)
 
     if _plot:
         # Visualize graph - TO-DO: color by clusters
