@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.distributions as td
 import torch.linalg as LA
+from torch.autograd.functional import jacobian
 
 import torchvision
 import torchvision.transforms as transforms
@@ -19,6 +20,14 @@ import torch_geometric
 
 from torch_geometric.nn import GCNConv, GATConv, SAGPooling
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool
+
+from torch_geometric.utils import (
+    add_self_loops,
+    negative_sampling,
+    remove_self_loops,
+)
+
+from sklearn.metrics import average_precision_score, roc_auc_score
 
 import copy
 
@@ -348,11 +357,70 @@ class GAE(GraphConvNetwork):
             reg_hook_conv = False
         )
 
-    def decode(self, z, sigmoid= True):
+    def decode(self, z, edge_index, sigmoid=True)->torch.tensor:
+        """
+        Returns edge probabilities for the node embeddings for
+        the given node-pairs from :obj:`edge_index`. 
+
+        Modified from : 
+        https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/autoencoder.html
+        """
+        logits = (z[edge_index[0]]*z[edge_index[1]]).sum(dim=1)
+        if sigmoid: 
+            probs = torch.sigmoid(logits)
+            return probs
+        else: 
+            return logits
+
+    def decode_to_adj(self, z, sigmoid= True):
         "Returns predicted adjacency matrix given node embeddings."
         A = z@z.t()    
         return torch.sigmoid(A) if sigmoid else A
 
+    def recon_loss(self, z, pos_edge_index, neg_edge_index=None): 
+        """
+        Modified from: 
+        https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/autoencoder.html
+        """
+        EPS = 1e-15
+
+        pos_loss = -torch.log(
+            self.decode(z, pos_edge_index) + EPS
+        ).mean()
+
+        # Don't include self loops in neg samples 
+        pos_edge_index, _ = remove_self_loops(pos_edge_index)
+
+        # Is this one necessary? Maybe needed after computing neg_edge_index 
+        pos_edge_index, _ = add_self_loops(pos_edge_index)
+
+        if neg_edge_index is None: 
+            neg_edge_index = negative_sampling(pos_edge_index, z.size(0))
+
+        neg_loss = -torch.log(
+            self.decode(z, neg_edge_index, sigmoid = True) + EPS
+        ).mean()
+
+        return pos_loss + neg_loss
+    
+    def get_roc_auc_score(self, z, pos_edge_index, neg_edge_index): 
+        """
+        Modified from torch_geometric.
+        """
+        pos_y = z.new_ones(pos_edge_index.size(1))
+        neg_y = z.new_zeros(neg_edge_index.size(1))
+        y = torch.cat([pos_y, neg_y], dim=0)
+
+        pos_pred = self.decoder(z, pos_edge_index, sigmoid=True)
+        neg_pred = self.decoder(z, neg_edge_index, sigmoid=True)
+        pred = torch.cat([pos_pred, neg_pred], dim=0)
+
+        y, pred = y.detach().cpu().numpy(), pred.detach().cpu().numpy()
+
+        return roc_auc_score(y, pred), average_precision_score(y, pred)
+
+
+    #def recon_loss():
 
 
 class GraphAttentionNetwork(GNNBase):
@@ -1514,3 +1582,117 @@ class MMF(nn.Module):
     def forward(self, idx_row, view):
         out = self.Z(idx_row)@self.Ws[view].weight#.clone()
         return out
+
+
+class GeodesicDecoder(nn.Module): 
+    """
+    """
+    def __init__(self, z_0:torch.Tensor, z_1: torch.Tensor, device = None, n_pts =None):
+        """
+        """
+        super(GeodesicDecoder, self).__init__()
+
+        n_z = len(z_0)
+        self.decoder = nn.Linear(1, n_z)
+        self.embedding_dim = n_z
+        self.device = device if device is not None else try_gpu(0)
+        self.n_pts = n_pts if n_pts is not None else 10
+        self.z_0 = z_0 
+        self.z_1 = z_1
+    
+    
+    def get_norm_cts_geodesic(self, z_hat_0_vec, z_hat_1_vec, return_cts=False): 
+        """
+        Element wise norm constants. 
+
+        Params
+        ------
+        z_hat_0_vec : unnormalized output of decoder of first point of geodesic curve, i.e. \hat{γ}(0) ∈ R^n_z
+        z_hat_1_vec : unnormalized output of decoder of final point of geodesic curve, i.e. \hat{γ}(1) ∈ R^n_z
+        
+        Based on Chen et al. 
+        """
+
+        def get_norm_ct_alpha(z_hat_0:float, z_hat_1:float, i:int):
+            """
+            Params
+            ------
+            i (int): dimension idx
+            """
+            z_0_i, z_1_i = self.z_0[i], self.z_1[i]
+            A = (z_0_i - z_1_i) / (z_hat_0 - z_hat_1)
+            return A 
+
+        def get_norm_ct_beta(z_hat_0:float, z_hat_1:float, i:int): 
+            z_0_i, z_1_i = self.z_0[i], self.z_1[i]
+            B = (z_0_i*z_hat_1 - z_1_i*z_hat_0) / (z_hat_0 - z_hat_1)
+            return B
+
+        a = torch.zeros(self.embedding_dim)
+        b = torch.zeros(self.embedding_dim)
+
+        for i in range(self.embedding_dim): 
+            a[i] = get_norm_ct_alpha(z_hat_0_vec[i], z_hat_1_vec[i], i)
+            b[i] = get_norm_ct_beta(z_hat_0_vec[i], z_hat_1_vec[i], i)
+
+        self.a, self.b = a, b
+
+        if return_cts:
+            return a,b
+
+    
+
+    def normalize(self, z_hat:torch.tensor)->torch.tensor:
+        """
+        Scale and shift a vector in the curve 𝛾̂ -> 𝛾, s.t. 𝛾(0) = z_0, 𝛾(1) = z_1
+        """
+        z = self.a*z_hat + self.b
+        return z
+
+    
+    def forward(self, ts):
+        "Returns the full curve 𝛾 given an equally spaced interval of [0,1]."
+
+        #ts = torch.linspace(0, 1, self.n_pts, device = self.device)
+        z_hat_zero, z_hat_one = self.decoder(ts[0].unsqueeze(0)), self.decoder(ts[1].unsqueeze(0))
+        # Update normalizing constants
+        self.get_norm_cts_geodesic(z_hat_zero, z_hat_one)
+        outs = self.decoder(ts[1:-1].unsqueeze(1))
+        z_hats= torch.cat(
+            [z_hat_zero.unsqueeze(0), outs, z_hat_one.unsqueeze(0)],
+            axis = 0
+        )
+        zs = self.normalize(z_hats)
+
+        return zs
+
+def geo_length(decoder, geodesic_decoder, normalize = True):
+    """
+    Returns the geodesic length.
+    """
+    n_pts = geodesic_decoder.n_pts
+    device = geodesic_decoder.device
+    emb_dim = geodesic_decoder.embedding_dim
+    ts = torch.linspace(0, 1, n_pts, device=device)
+    zs = geodesic_decoder(ts)
+    x_hats = decoder(zs)
+
+    length = 0
+    for i in range(n_pts): 
+        J = jacobian(decoder, x_hats[i], zs[i])
+        J = J.reshape(emb_dim, emb_dim)
+        G = J.T@J
+        gamma_prime = jacobian(geodesic_decoder, zs[i], ts[i])
+        phi = torch.sqrt(gamma_prime.T@ G @gamma_prime)
+        length+=phi
+    
+    if normalize: 
+        length/=n_pts
+    
+    return length
+        
+
+    
+
+
+
