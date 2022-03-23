@@ -1200,7 +1200,7 @@ class VariationalAutoencoder(nn.Module):
 
         variational_loss = recon_loss + self.beta*KLD
 
-        return variational_loss
+        return variational_loss.float()
 
     def project(self, x):
 
