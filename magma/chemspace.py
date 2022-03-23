@@ -21,6 +21,7 @@ from rdkit import DataStructs
 from io import BytesIO
 from PIL import Image
 import base64
+from torch_geometric.utils import negative_sampling
 
 from bokeh.plotting import figure, show, output_notebook
 from bokeh.models import HoverTool, ColumnDataSource, CategoricalColorMapper
@@ -498,7 +499,9 @@ def plot_node_activations(
 
 
 
-def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False, dev_idx = None):
+def get_drug_batch(
+    labels_batch, name_to_mol, ix_to_name, cuda = False, dev_idx = None, is_gae = False
+):
     "Returns a list of torch.geometric Data object given a list of sample codes."
 
     if cuda:
@@ -513,12 +516,18 @@ def get_drug_batch(labels_batch, name_to_mol, ix_to_name, cuda = False, dev_idx 
         graph = mol2tensors(
             name_to_mol[ix_to_name[x.item()]], use_gpu = cuda, idx = dev_idx
         )
+        
+        if is_gae: 
+            graph.neg_edge_index = negative_sampling(mol_graph.edge_index)
 
         if cuda:
 			#print(c)
             graph.x = graph.x.cuda(dev_idx)
             graph.edge_index = graph.edge_index.cuda(dev_idx)
             graph.edge_attr = graph.edge_attr.cuda(dev_idx)
+
+            if is_gae: 
+                graph.neg_edge_index = graph.neg_edge_index.cuda(dev_idx)
 
         drug_graphs.append(graph)
 
