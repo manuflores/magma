@@ -518,7 +518,7 @@ def get_drug_batch(
         )
         
         if is_gae: 
-            graph.neg_edge_index = negative_sampling(mol_graph.edge_index)
+            graph.neg_edge_index = negative_sampling(graph.edge_index)
 
         if cuda:
 			#print(c)
