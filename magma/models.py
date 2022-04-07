@@ -335,7 +335,7 @@ class GAE(GraphConvNetwork):
         self, 
         dims_conv, 
         dims_lin, 
-        model_type,
+        model_type="multiclass",
         **kwargs
         ):
 
@@ -349,6 +349,9 @@ class GAE(GraphConvNetwork):
         self.device = try_gpu()
 
     def encode(self, data, pool = False, **kwargs):
+        """
+        Note: by design, if we use pool = False, we return node embeddings from conv encoder only.
+        """
         return self.project(
             data,
             extra_graph_feats = None,
@@ -366,11 +369,8 @@ class GAE(GraphConvNetwork):
         https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/nn/models/autoencoder.html
         """
         logits = (z[edge_index[0]]*z[edge_index[1]]).sum(dim=1)
-        if sigmoid: 
-            probs = torch.sigmoid(logits)
-            return probs
-        else: 
-            return logits
+        
+        return torch.sigmoid(logits) if sigmoid else logits
 
     def decode_to_adj(self, z, sigmoid= True):
         "Returns predicted adjacency matrix given node embeddings."
