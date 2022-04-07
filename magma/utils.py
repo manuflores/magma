@@ -39,6 +39,11 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, Draw
 import matplotlib.pyplot as plt
 
+def boolean_string(s):
+    if s not in {'False', 'True'}:
+        raise ValueError('Not a valid boolean string')
+    return s == 'True'
+
 
 # TO-DO: Refactor trainers to work with Data objects,
 # for different models not to be hard coded only based
@@ -3015,11 +3020,10 @@ def lognorm_cells(
 	# Get total counts per cell from `obs` df
 	if 'n_counts' in adata.obs.columns:
 		counts = adata.obs.n_counts.values
-
 	else:
 		counts = adata.X.sum(axis = 1).flatten()
 
-	# Convert to numpy matrix to array to be able to flatten
+	# Convert numpy matrix to array to be able to flatten
 	scaled_counts = np.array(counts).flatten() / scaling_factor
 
 	# Efficient normalization in-place for sparse matrix
