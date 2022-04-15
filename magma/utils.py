@@ -3345,6 +3345,29 @@ def ecdf(x)->(np.array, np.array):
     ecdf = np.linspace(0, 1, len(x_sorted))
     return x_sorted, ecdf
 
+def quantile_func(distro_arr, perc:float):
+    """
+    Let F(x)=p be the ECDF. 
+    Returns F^{-1}(p). 
+    I.e. returns the value at which the ECDF takes on the percentile `p`.
+    
+    Notes
+    ------
+    If F() is the CDF function, F(x) returns the fraction of elements that have 
+    values less than or equal to x. 
+    
+    Params
+    ------
+    p(float)
+        Percentile from 0 to 1. 
+    """
+    sorted_vals, _ = ecdf(distro_arr)
+    n = len(distro_arr)
+    idx = int(n*perc)
+    return sorted_vals[idx]
+
+
+
 def get_stats(distro_x, distro_y):
     """
     Returns statistics from testing that `distro_x` takes larger values that `distro_y`.
