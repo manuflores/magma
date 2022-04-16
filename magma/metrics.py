@@ -15,6 +15,10 @@ import torch
 from typing import Optional, Sequence, Tuple, Union
 from sklearn.neighbors import KDTree
 from sklearn.metrics import pairwise_distances
+from tqdm import tqdm 
+from sklearn.metrics import jaccard_score
+from joblib import Parallel, delayed
+import multiprocessing as mp
 
 def generalized_distance_matrix(X,Y):
     """
@@ -448,3 +452,80 @@ def affinity_norm(data, k):
     A_scaled = np.exp(-D_scaled)
 
     return A_scaled
+
+
+
+def _jaccard(idx_query, idx_pred, targets_arr): 
+    """
+    Computes Jaccard score between binary vectors.
+    """
+    y = targets_arr[idx_query]
+    y_hat = targets_arr[idx_pred]
+    
+    return jaccard_score(y, y_hat)
+
+def run_jaccard_score_calc( 
+    cosine_arr, 
+    targets_arr,
+    df_combos,
+    name_to_ix_target,
+    topk=30,
+    axis = 1,
+    n_cores=-1
+    )->np.array:
+    """
+    Returns the average jaccard score for top predictions.
+
+    Params
+    ------
+    cosine_arr (np.array)
+        Cosine similarity array. It has shape (mols,cells). 
+        Note : in most cases mols = structure + cell type combination.
+
+    targets_arr (np.array)
+        Binary matrix where the i-th row contains the targets of the i-th molecule.
+    
+    df_combos (pd.DataFrame)
+        Dataframe with `n_combos` rows. Each combination is a (molecule, celltype) pair.
+
+    name_to_ix_target (dict)
+        Mapping going from molecule name to idx in `target_arr` matrix.
+
+    topk(int, default =30)
+        kNearest neighbors to look for. 
+
+    axis (int, default = 1)
+        Axis along which you can find cells. If axis == 0, cells are along rows.
+    
+    n_cores (int, default = -1)
+        Number of cores to run in parallel. If set to -1 it detects max number of cores.
+
+    """
+    n_cores = mp.cpu_count() if n_cores == -1 else n_cores
+
+    n_cells = cosine_arr.shape[axis]
+    
+    if axis == 0: 
+        cosine_arr = cosine_arr.T
+
+    jacc_scores = np.zeros(n_cells)
+    for i in tqdm(range(n_cells)):
+
+        # Get idx of query mol (perturbing the i-th cell)
+        idx_query = name_to_ix_target[i]
+
+        # Get the top indices of the closest molecule-cell pairs
+        ix_top_combos = np.argsort(cosine_arr[:, i])[::-1][:topk]
+        pred_mols = df_combos.iloc[ix_top_combos].drug_name.values
+
+        # get ids from target from molnames
+        pred_ids = [name_to_ix_target[x] for x in pred_mols]
+        
+        jaccard_scores = Parallel(n_cores)(
+            delayed(_jaccard)(idx_query, idx_pred, targets_arr) for idx_pred in pred_ids
+        )
+
+        avg_jaccard_score = np.mean(jaccard_scores)
+        jacc_scores[i] = avg_jaccard_score
+    
+    return jacc_scores
